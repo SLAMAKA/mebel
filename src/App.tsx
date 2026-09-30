@@ -1,69 +1,49 @@
-import { useMemo, useState } from 'react'
-import { compile } from './geometry'
-import { defaultConfig, readConfig, sanitize, type Config } from './model'
-import { Panel } from './panel'
-import { Stage } from './scene'
+import { useEffect, useState } from 'react'
+import { MiniPage } from './mini/page'
+import { PedestalPage, WardrobePage } from './pages'
+
+const routes = [
+  { path: '/', name: 'Шкаф' },
+  { path: '/mini', name: 'Мини' },
+  { path: '/pedestal', name: 'Тумба' },
+] as const
+
+function readPath() {
+  const raw = window.location.hash.replace(/^#/, '') || '/'
+  if (raw === '/mini' || raw === '/pedestal') return raw
+  return '/'
+}
+
+function ProductNav({ path }: { path: string }) {
+  return (
+    <nav className="product-nav" aria-label="Изделия">
+      {routes.map((item) => (
+        <a
+          key={item.path}
+          href={`#${item.path === '/' ? '/' : item.path}`}
+          className={path === item.path ? 'product-link on' : 'product-link'}
+        >
+          {item.name}
+        </a>
+      ))}
+    </nav>
+  )
+}
 
 export default function App() {
-  const [config, setConfig] = useState<Config>(defaultConfig)
-  const [open, setOpen] = useState<Record<string, boolean>>({})
-  const [shot, setShot] = useState(0)
-  const [note, setNote] = useState('')
-  const compiled = useMemo(() => compile(config), [config])
+  const [path, setPath] = useState(readPath)
 
-  function apply(next: Config) {
-    setConfig(sanitize(next))
-    setNote('')
-  }
-
-  function setFronts(flag: boolean) {
-    const next: Record<string, boolean> = {}
-    for (const part of compiled.parts) {
-      if (part.move) next[part.key] = flag
-    }
-    setOpen(next)
-  }
-
-  function load(file: File) {
-    file.text().then((text) => {
-      const next = readConfig(JSON.parse(text))
-      if (!next) {
-        setNote('Файл не похож на эскиз шкафа')
-        return
-      }
-      setOpen({})
-      setConfig(next)
-      setNote('')
-    }).catch(() => setNote('Не удалось прочитать файл'))
-  }
+  useEffect(() => {
+    const onHash = () => setPath(readPath())
+    window.addEventListener('hashchange', onHash)
+    if (!window.location.hash) window.location.hash = '#/'
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   return (
-    <div className="app">
-      <Panel
-        config={config}
-        spec={compiled.spec}
-        cuts={compiled.cuts}
-        tapes={compiled.tapes}
-        marks={compiled.marks}
-        note={note}
-        onChange={apply}
-        onOpenAll={() => setFronts(true)}
-        onCloseAll={() => setFronts(false)}
-        onLoad={load}
-      />
-      <main className="view">
-        <Stage
-          config={config}
-          compiled={compiled}
-          open={open}
-          shot={shot}
-          onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
-        />
-        <div className="hud">
-          <p>Тяни чтобы повернуть · клик открывает дверцу</p>
-          <button type="button" onClick={() => setShot((value) => value + 1)}>В кадр</button>
-        </div>
-      </main>
+    <div className="shell">
+      <ProductNav path={path} />
+      {path === '/mini' ? <MiniPage /> : path === '/pedestal' ? <PedestalPage /> : <WardrobePage />}
     </div>
   )
 }

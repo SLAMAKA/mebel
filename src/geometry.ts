@@ -29,6 +29,8 @@ export type Part = {
   move?: Move
   face?: Face
   mirror?: MirrorId
+  /** Форма детали. По умолчанию box. */
+  shape?: 'box' | 'cyl'
 }
 
 export type Span = { w: number; h: number; d: number }
@@ -67,13 +69,14 @@ export type Compiled = {
   marks: MarkRow[]
 }
 
-const T = 0.018
+export const PANEL_T = 0.018
 
-function m(mm: number) {
-  return mm / 1000
+export function mm(value: number) {
+  return value / 1000
 }
 
-function shell(prefix: string, x: number, yBottom: number, z: number, w: number, h: number, d: number): Part[] {
+export function shell(prefix: string, x: number, yBottom: number, z: number, w: number, h: number, d: number): Part[] {
+  const T = PANEL_T
   const y = yBottom + h / 2
   const innerW = Math.max(0.02, w - 2 * T)
   const innerH = Math.max(0.02, h - 2 * T)
@@ -103,6 +106,7 @@ function legs(prefix: string, x: number, z: number, w: number, d: number, h: num
 }
 
 function plinth(prefix: string, x: number, z: number, w: number, d: number, h: number): Part[] {
+  const T = PANEL_T
   return [
     { key: `${prefix}-plinth-f`, size: [w - 0.028, h, T], pos: [x, h / 2, z + d / 2 - 0.058], role: 'plinth' },
     { key: `${prefix}-plinth-l`, size: [T, h, d - 0.09], pos: [x - w / 2 + 0.02, h / 2, z - 0.02], role: 'plinth' },
@@ -110,17 +114,18 @@ function plinth(prefix: string, x: number, z: number, w: number, d: number, h: n
   ]
 }
 
-function support(prefix: string, base: BaseId, x: number, z: number, w: number, d: number, h: number) {
+export function support(prefix: string, base: BaseId, x: number, z: number, w: number, d: number, h: number) {
   if (base === 'legs') return legs(prefix, x, z, w, d, h)
   return plinth(prefix, x, z, w, d, h)
 }
 
-function wardrobe(config: Config): Part[] {
-  const w = m(config.width)
-  const h = m(config.height)
-  const d = m(config.depth)
+function cabinetBody(config: Config, withDoors: boolean): Part[] {
+  const T = PANEL_T
+  const w = mm(config.width)
+  const h = mm(config.height)
+  const d = mm(config.depth)
   const lift = config.base === 'legs' ? 0.1 : 0.08
-  const bodyH = Math.max(0.4, h - lift)
+  const bodyH = Math.max(0.25, h - lift)
   const sections = Math.max(1, config.sections)
   const parts: Part[] = [
     ...shell('cab', 0, lift, 0, w, bodyH, d),
@@ -157,7 +162,7 @@ function wardrobe(config: Config): Part[] {
     }
   }
 
-  if (config.doors !== 'open') {
+  if (withDoors && config.doors !== 'open') {
     const gap = 0.003
     const doorH = bodyH - gap * 2
     const doorY = lift + bodyH / 2
@@ -194,7 +199,79 @@ function wardrobe(config: Config): Part[] {
   return parts
 }
 
-function layout(parts: Part[]) {
+function pedestal(config: Config): Part[] {
+  const T = PANEL_T
+  const w = mm(config.width)
+  const h = mm(config.height)
+  const d = mm(config.depth)
+  const lift = config.base === 'legs' ? 0.08 : 0.06
+  const bodyH = Math.max(0.2, h - lift)
+  const sections = Math.max(1, config.sections)
+  const drawers = Math.max(1, config.drawers)
+  const parts: Part[] = [
+    ...shell('cab', 0, lift, 0, w, bodyH, d),
+    ...support('cab', config.base, 0, 0, w, d, lift),
+  ]
+
+  const innerW = w - 2 * T
+  const bay = (innerW - (sections - 1) * T) / sections
+  const origin = -innerW / 2
+  const innerH = bodyH - 2 * T
+  const y0 = lift + T
+
+  for (let i = 1; i < sections; i++) {
+    const x = origin + i * bay + (i - 0.5) * T
+    parts.push({
+      key: `cab-div-${i}`,
+      size: [T, innerH, d - 0.04],
+      pos: [x, y0 + innerH / 2, -0.008],
+      role: 'carcass',
+    })
+  }
+
+  for (let s = 0; s < sections; s++) {
+    const left = origin + s * (bay + T)
+    const clear = bay
+    if (clear < 0.03) continue
+    for (let k = 1; k < drawers; k++) {
+      parts.push({
+        key: `cab-tray-${s}-${k}`,
+        size: [clear - 0.002, T, d - 0.1],
+        pos: [left + clear / 2, y0 + (k * innerH) / drawers, -0.02],
+        role: 'carcass',
+      })
+    }
+  }
+
+  const gap = 0.003
+  const faceH = (bodyH - gap * (drawers + 1)) / drawers
+  const doorZ = d / 2 + T / 2 + 0.001
+  for (let s = 0; s < sections; s++) {
+    const faceW = (w - gap * (sections + 1)) / sections
+    const x = -w / 2 + gap + faceW / 2 + s * (faceW + gap)
+    for (let k = 0; k < drawers; k++) {
+      const y = lift + gap + faceH / 2 + k * (faceH + gap)
+      parts.push({
+        key: `cab-drawer-${s}-${k}`,
+        size: [faceW, faceH, T],
+        pos: [x, y, doorZ],
+        role: 'facade',
+        move: 'drawer',
+        face: 'pz',
+        mirror: 'none',
+      })
+    }
+  }
+
+  return parts
+}
+
+function buildParts(config: Config): Part[] {
+  if (config.kind === 'pedestal') return pedestal(config)
+  return cabinetBody(config, true)
+}
+
+export function layout(parts: Part[]) {
   let minX = Infinity
   let maxX = -Infinity
   let maxY = 0
@@ -245,13 +322,27 @@ export function handlePlan(
   const h = part.size[1]
   if (handle === 'none') return { holes: [] as { x: number; y: number }[] }
 
+  const y = alongHeight(h, pos)
+
+  // Ящик: ручка по центру фасада.
+  if (part.move === 'drawer') {
+    if (handle === 'knob') return { holes: [{ x: w * 0.5, y }] }
+    if (handle === 'edge') return { holes: [{ x: w * 0.5, y: h * 0.92 }] }
+    const span = Math.min(0.28, Math.max(0.12, w * 0.35))
+    return {
+      holes: [
+        { x: w * 0.5 - span / 2, y },
+        { x: w * 0.5 + span / 2, y },
+      ],
+    }
+  }
+
   // Петля слева → открытие справа. Петля справа → открытие слева.
   const hingeLeft = part.move === 'swing-left' || part.move === 'slide-left' || !part.move
   const openOnLeft = !hingeLeft
   const onOpen = side === 'open'
   const onLeft = onOpen ? openOnLeft : hingeLeft
   const edgeX = onLeft ? w * 0.18 : w * 0.82
-  const y = alongHeight(h, pos)
 
   if (handle === 'knob') return { holes: [{ x: edgeX, y }] }
 
@@ -303,25 +394,39 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
   const posName = config.handlePos === 'top' ? 'верх' : config.handlePos === 'bottom' ? 'низ' : 'середина'
   const sideName = config.handleSide === 'hinge' ? 'у петли' : 'у открытия'
 
+  const kindName = config.kind === 'pedestal' ? 'Тумба' : 'Шкаф'
+  rows.push({ name: 'Изделие', value: kindName })
   rows.push({ name: 'Габарит', value: `${config.width} × ${config.height} × ${config.depth} мм` })
   rows.push({ name: 'Секции', value: `${config.sections}` })
-  rows.push({ name: 'Полки', value: `${config.shelves} в секции` })
-  rows.push({ name: 'Двери', value: findById(doorModes, config.doors).name })
+  if (config.kind === 'pedestal') {
+    rows.push({ name: 'Ящики', value: `${config.drawers} в колонке` })
+  } else {
+    rows.push({ name: 'Полки', value: `${config.shelves} в секции` })
+    rows.push({ name: 'Двери', value: findById(doorModes, config.doors).name })
+  }
   rows.push({ name: 'Корпус', value: `${carcass.name} / ${carcassColor.name}` })
   rows.push({ name: 'Фасад', value: `${facade.name} / ${facadeColor.name} / ${findById(frameModes, config.frame).name}` })
-  rows.push({ name: 'Зеркало', value: findById(mirrorModes, config.mirror).name })
+  if (config.kind !== 'pedestal') {
+    rows.push({ name: 'Зеркало', value: findById(mirrorModes, config.mirror).name })
+  }
   rows.push({ name: 'Опора', value: base.name })
   rows.push({
     name: 'Ручка',
-    value: handle.id === 'none' ? 'Без ручки' : `${handle.name} / ${finish.name} / ${posName} / ${sideName}`,
+    value: handle.id === 'none'
+      ? 'Без ручки'
+      : config.kind === 'pedestal'
+        ? `${handle.name} / ${finish.name} / ${posName}`
+        : `${handle.name} / ${finish.name} / ${posName} / ${sideName}`,
   })
   rows.push({ name: 'Задняя стенка', value: 'ХДФ 8 мм накладная' })
 
   const fronts = parts.filter((part) => part.move)
   const swings = fronts.filter((part) => part.move === 'swing-left' || part.move === 'swing-right')
+  const drawers = fronts.filter((part) => part.move === 'drawer')
   rows.push({ name: 'Фасады', value: `${fronts.length} шт` })
   const hingeCount = swings.reduce((sum, part) => sum + hingeHeights(part.size[1]).length, 0)
   if (hingeCount) rows.push({ name: 'Петли', value: `${hingeCount} шт скрытые` })
+  if (drawers.length) rows.push({ name: 'Направляющие', value: `${drawers.length} пар` })
 
   const sheetRow = (name: string, roles: Role[]) => {
     const area = parts.filter((part) => roles.includes(part.role)).reduce((sum, part) => sum + panelArea(part.size), 0)
@@ -393,7 +498,7 @@ function cutSize(part: Part) {
   }
 }
 
-function buildCuts(config: Config, parts: Part[]): CutRow[] {
+export function buildCuts(config: Config, parts: Part[]): CutRow[] {
   const map = new Map<string, CutRow>()
   for (const part of parts) {
     if (part.role === 'metal') continue
@@ -425,7 +530,7 @@ function buildCuts(config: Config, parts: Part[]): CutRow[] {
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 }
 
-function buildTapes(_config: Config, parts: Part[]): TapeRow[] {
+export function buildTapes(_config: Config, parts: Part[]): TapeRow[] {
   let need2 = 0
   let need04 = 0
   for (const part of parts) {
@@ -444,7 +549,7 @@ function buildTapes(_config: Config, parts: Part[]): TapeRow[] {
   return rows
 }
 
-function buildMarks(config: Config, parts: Part[]): MarkRow[] {
+export function buildMarks(config: Config, parts: Part[]): MarkRow[] {
   const rows: MarkRow[] = []
   for (const part of parts) {
     if (!part.move) continue
@@ -470,12 +575,12 @@ function buildMarks(config: Config, parts: Part[]): MarkRow[] {
 
 export function compile(input: Config): Compiled {
   const config = sanitize(input)
-  const parts = wardrobe(config)
+  const parts = buildParts(config)
   const placed = layout(parts)
   return {
     parts: placed.parts,
     span: placed.span,
-    dims: { w: m(config.width), h: m(config.height), d: m(config.depth) },
+    dims: { w: mm(config.width), h: mm(config.height), d: mm(config.depth) },
     spec: makeSpec(config, placed.parts),
     cuts: buildCuts(config, placed.parts),
     tapes: buildTapes(config, placed.parts),

@@ -10,7 +10,7 @@ import {
   finishes,
   type BoardId,
   type ColorId,
-  type Config,
+  type SceneLook,
 } from './model'
 
 type Mat = {
@@ -64,7 +64,7 @@ function shade(hex: string, amount: number) {
   return `#${channel(16)}${channel(8)}${channel(0)}`
 }
 
-function styleFor(part: Part, config: Config): Mat {
+function styleFor(part: Part, config: SceneLook): Mat {
   const carcassBoard = findById(boards, config.carcassBoard)
   const facadeBoard = findById(boards, config.facadeBoard)
   const carcassHex = findById(colors, config.carcassColor).hex
@@ -102,12 +102,12 @@ function Material({ mat, hot }: { mat: Mat; hot?: boolean }) {
   )
 }
 
-function FinishMaterial({ config }: { config: Config }) {
+function FinishMaterial({ config }: { config: SceneLook }) {
   const finish = findById(finishes, config.finish)
   return <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
 }
 
-function HandleMesh({ handle, config }: { handle: Config['handle']; config: Config }) {
+function HandleMesh({ handle, config }: { handle: SceneLook['handle']; config: SceneLook }) {
   if (handle === 'none') return null
   if (handle === 'knob') {
     return (
@@ -191,7 +191,7 @@ function FrameOverlay({
 }: {
   size: [number, number, number]
   meshX: number
-  frame: Config['frame']
+  frame: SceneLook['frame']
   baseColor: string
   map?: CanvasTexture
 }) {
@@ -329,7 +329,7 @@ function MirrorOverlay({
 }: {
   size: [number, number, number]
   meshX: number
-  mirror: Config['mirror']
+  mirror: SceneLook['mirror']
 }) {
   if (!mirror || mirror === 'none') return null
   const z = size[2] / 2 + 0.006
@@ -384,7 +384,7 @@ function Moving({
 }: {
   part: Part
   open: boolean
-  config: Config
+  config: SceneLook
   onToggle: (key: string) => void
 }) {
   const anim = useRef<Group>(null)
@@ -393,6 +393,7 @@ function Moving({
   const swing = part.move === 'swing-left' || part.move === 'swing-right'
   const left = part.move === 'swing-left'
   const right = part.move === 'swing-right'
+  const shoe = part.key.includes('shoe')
   const pivotX = left
     ? part.pos[0] - part.size[0] / 2
     : right
@@ -432,11 +433,14 @@ function Moving({
     if (right) group.rotation.y = amount * 1.15
     if (part.move === 'slide-left') group.position.x = -amount * Math.min(part.size[0] * 0.6, 0.42)
     if (part.move === 'slide-right') group.position.x = amount * Math.min(part.size[0] * 0.6, 0.42)
-    if (part.move === 'drawer') group.position.z = amount * 0.22
+    if (part.move === 'drawer') group.position.z = amount * (shoe ? 0.34 : 0.22)
   })
 
   const hingeSpots = swing ? hingeHeights(part.size[1]) : []
   const mat = styleFor(part, config)
+  const finish = findById(finishes, config.finish)
+  const rackW = part.size[0] * 0.82
+  const rackD = 0.22
 
   return (
     <group position={[pivotX, pivotY, pivotZ]}>
@@ -462,6 +466,26 @@ function Moving({
           <boxGeometry args={part.size} />
           <Material mat={mat} hot={hot} />
         </mesh>
+        {shoe && (
+          <group position={[meshX, -part.size[1] * 0.08, -part.size[2] / 2 - rackD / 2 - 0.01]}>
+            <mesh castShadow>
+              <boxGeometry args={[rackW, 0.008, rackD]} />
+              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
+            </mesh>
+            <mesh position={[0, 0.04, -rackD * 0.15]} rotation={[0.55, 0, 0]} castShadow>
+              <boxGeometry args={[rackW * 0.92, 0.006, 0.12]} />
+              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
+            </mesh>
+            <mesh position={[-rackW / 2 + 0.008, 0.03, 0]} castShadow>
+              <boxGeometry args={[0.008, 0.06, rackD]} />
+              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
+            </mesh>
+            <mesh position={[rackW / 2 - 0.008, 0.03, 0]} castShadow>
+              <boxGeometry args={[0.008, 0.06, rackD]} />
+              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
+            </mesh>
+          </group>
+        )}
         {part.role === 'facade' && (
           <FrameOverlay
             size={part.size}
@@ -494,11 +518,17 @@ function Moving({
   )
 }
 
-function Still({ part, config }: { part: Part; config: Config }) {
+function Still({ part, config }: { part: Part; config: SceneLook }) {
   const mat = styleFor(part, config)
+  const cyl = part.shape === 'cyl'
+  const radius = Math.min(part.size[0], part.size[2]) / 2
   return (
     <mesh position={part.pos} castShadow receiveShadow>
-      <boxGeometry args={part.size} />
+      {cyl ? (
+        <cylinderGeometry args={[radius, radius, part.size[1], 20]} />
+      ) : (
+        <boxGeometry args={part.size} />
+      )}
       <Material mat={mat} />
     </mesh>
   )
@@ -560,7 +590,7 @@ export function Stage({
   shot,
   onToggle,
 }: {
-  config: Config
+  config: SceneLook
   compiled: Compiled
   open: Record<string, boolean>
   shot: number

@@ -23,6 +23,88 @@ input { font: inherit; }
   display: grid;
   grid-template-columns: 400px 1fr;
   height: 100%;
+  min-height: 0;
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.shell > .app {
+  flex: 1;
+  min-height: 0;
+}
+
+.product-nav {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px;
+  background: #1c1612;
+  border-bottom: 1px solid #3a3129;
+}
+
+.product-link {
+  border-radius: 999px;
+  padding: 8px 16px;
+  color: #cbb9a4;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.product-link:hover {
+  color: #f4efe6;
+  background: #312820;
+}
+
+.product-link.on {
+  background: #e28a45;
+  color: #241c16;
+}
+
+.variant-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.variant {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #4a4036;
+  border-radius: 12px;
+  background: #312820;
+  color: #f4efe6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.variant strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.variant span {
+  color: #9a8b7a;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.variant.on {
+  background: #e28a45;
+  border-color: #e28a45;
+  color: #241c16;
+}
+
+.variant.on span {
+  color: #5a3a22;
 }
 
 .panel {
@@ -68,14 +150,10 @@ input { font: inherit; }
   font-size: 13px;
 }
 
-.kinds {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
-  gap: 8px;
-  margin-top: 22px;
+.tabs {
+  display: none;
 }
 
-.kind,
 .chip,
 .ghost,
 .toggle,
@@ -88,26 +166,6 @@ input { font: inherit; }
   cursor: pointer;
 }
 
-.kind {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  border-radius: 12px;
-  padding: 10px 8px 8px;
-}
-
-.kind svg {
-  width: 28px;
-  height: 28px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.kind.on,
 .chip.on,
 .toggle.on {
   background: #e28a45;
@@ -298,7 +356,8 @@ section { margin-top: 22px; }
 .fold-body .measure:first-child,
 .fold-body .choice:first-child,
 .fold-body .toggles:first-child,
-.fold-body .row:first-child {
+.fold-body .row:first-child,
+.fold-body .chips:first-child {
   margin-top: 12px;
 }
 
