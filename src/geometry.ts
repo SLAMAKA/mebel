@@ -33,6 +33,8 @@ export type Part = {
   shape?: 'box' | 'cyl'
   /** Ось цилиндра. По умолчанию вертикаль. */
   axis?: 'x' | 'y'
+  /** Наклон вокруг X в радианах. Для полок обувницы. */
+  pitch?: number
   /** Деталь едет вместе с этой фасадной деталью. */
   host?: string
   /** Только для раскроя. На сцене не рисуется. */
@@ -456,12 +458,18 @@ export function partLabel(part: Part) {
   if (part.role === 'facade') return 'Фасад'
   if (part.role === 'back') return 'Задняя стенка'
   if (part.role === 'plinth') return 'Цоколь'
-  if (part.key.includes('shelf')) return 'Полка'
+  if (part.key.includes('stop')) return 'Стоп ящика'
+  if (part.key.includes('mech') || part.key.includes('rail')) return 'Механизм ящика'
+  if (part.key.includes('hinge')) return 'Петля'
+  if (part.key.includes('floor')) return 'Дно ящика'
+  if (part.key.includes('lip')) return 'Упор пятки'
+  if (part.key.includes('tray')) return 'Полка яруса'
+  if (part.key.includes('shelf')) return 'Дно ящика'
   if (part.key.includes('div')) return 'Перегородка'
+  if (part.key.includes('side')) return 'Боковина ящика'
   if (part.key.endsWith('-t')) return 'Крышка'
   if (part.key.endsWith('-b')) return 'Дно'
   if (part.key.endsWith('-l') || part.key.endsWith('-r')) return 'Боковина'
-  if (part.key.includes('side')) return 'Боковина лотка'
   if (part.key.includes('leg')) return 'Ножка'
   return 'Деталь'
 }

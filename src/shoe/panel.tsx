@@ -14,6 +14,8 @@ import {
 } from '../ui'
 import {
   checkShoeRules,
+  setShoeDrawers,
+  shoeFaceHeightMm,
   shoeLimits,
   shoeSections,
   shoeSummary,
@@ -48,7 +50,8 @@ export function ShoePanel({
   const rules = checkShoeRules(config)
   const tip = (field: string) => tipForShoe(rules, field)
   const summary = shoeSummary(config)
-  const sizeSummary = `${config.width} × ${config.height} × ${config.depth} · ${config.drawers} ящ.`
+  const faceMm = shoeFaceHeightMm(config)
+  const sizeSummary = `${config.width} × ${config.height} × ${config.depth} · ${config.drawers} ящ. · ${faceMm} мм`
 
   function save() {
     const blob = new Blob([JSON.stringify({ kind: 'shoe', ...config }, null, 2)], { type: 'application/json' })
@@ -69,7 +72,7 @@ export function ShoePanel({
       </div>
 
       <p className="readout">
-        {config.width} × {config.height} × {config.depth} мм · {summary.color} · {shoeSections} секции в ящике
+        {config.width} × {config.height} × {config.depth} мм · {config.drawers} ящ. по {faceMm} мм · {summary.color}
       </p>
 
       <Fold title="Размеры" summary={sizeSummary}>
@@ -83,7 +86,25 @@ export function ShoePanel({
         <Measure label="Ширина" value={config.width} {...shoeLimits.width} tip={tip('width')} onChange={(width) => onChange({ ...config, width })} />
         <Measure label="Высота" value={config.height} {...shoeLimits.height} tip={tip('height')} onChange={(height) => onChange({ ...config, height })} />
         <Measure label="Глубина" value={config.depth} {...shoeLimits.depth} tip={tip('depth')} onChange={(depth) => onChange({ ...config, depth })} />
-        <Measure label="Ящики" unit="шт" value={config.drawers} {...shoeLimits.drawers} tip={tip('drawers')} onChange={(drawers) => onChange({ ...config, drawers })} />
+        <Measure
+          label="Ящики"
+          unit="шт"
+          value={config.drawers}
+          {...shoeLimits.drawers}
+          tip={tip('drawers')}
+          onChange={(drawers) => onChange(setShoeDrawers(config, drawers))}
+        />
+        <Measure
+          label="Ярусы в ящике"
+          unit="шт"
+          value={config.rows}
+          {...shoeLimits.rows}
+          tip={tip('rows')}
+          onChange={(rows) => onChange({ ...config, rows })}
+        />
+        <p className="door-place-hint">
+          Щиты параллельно фасаду · обувь стоя · носок вверх · {shoeSections} секции × {config.rows} яруса
+        </p>
       </Fold>
 
       <Fold title="Цвет" summary={`фасад ${summary.color}`}>

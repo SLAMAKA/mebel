@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Stage } from '../scene'
 import { compileShoe } from './geometry'
 import { ShoePanel } from './panel'
@@ -7,6 +7,7 @@ import {
   readShoeConfig,
   sanitizeShoe,
   shoeAsSceneLook,
+  shoeFaceHeightMm,
   type ShoeConfig,
 } from './model'
 
@@ -17,6 +18,11 @@ export function ShoePage() {
   const [note, setNote] = useState('')
   const compiled = useMemo(() => compileShoe(config), [config])
   const look = shoeAsSceneLook(config)
+
+  useEffect(() => {
+    setOpen({})
+    setShot((value) => value + 1)
+  }, [config.width, config.height, config.depth, config.drawers])
 
   function apply(next: ShoeConfig) {
     setConfig(sanitizeShoe(next))
@@ -68,7 +74,9 @@ export function ShoePage() {
           onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
         />
         <div className="hud">
-          <p>Обувница · тяни чтобы повернуть · клик откидывает ящик</p>
+          <p>
+            Обувница · {config.drawers} ящ. по {shoeFaceHeightMm(config)} мм · клик откидывает
+          </p>
           <button type="button" onClick={() => setShot((value) => value + 1)}>В кадр</button>
         </div>
       </main>

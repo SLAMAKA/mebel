@@ -64,7 +64,7 @@ function shade(hex: string, amount: number) {
   return `#${channel(16)}${channel(8)}${channel(0)}`
 }
 
-function styleFor(part: Part, config: SceneLook): Mat {
+function styleFor(part: Part, config: SceneLook, host?: Part): Mat {
   const carcassBoard = findById(boards, config.carcassBoard)
   const facadeBoard = findById(boards, config.facadeBoard)
   const carcassHex = findById(colors, config.carcassColor).hex
@@ -75,7 +75,8 @@ function styleFor(part: Part, config: SceneLook): Mat {
     return { color: finish.color, roughness: finish.roughness, metalness: finish.metalness }
   }
 
-  const painted = part.role === 'facade'
+  // Ящик на фасаде красится цветом фасада (обувница / откидные).
+  const painted = part.role === 'facade' || (part.role === 'carcass' && host?.role === 'facade')
   const board = painted ? facadeBoard : carcassBoard
   const colorId = painted ? config.facadeColor : config.carcassColor
   const hex = painted ? facadeHex : carcassHex
@@ -93,7 +94,7 @@ function Material({ mat, hot }: { mat: Mat; hot?: boolean }) {
   return (
     <meshStandardMaterial
       color={mat.map ? '#ffffff' : mat.color}
-      map={mat.map}
+      map={mat.map ?? null}
       roughness={mat.roughness}
       metalness={mat.metalness}
       emissive={hot ? '#ffffff' : '#000000'}
@@ -208,7 +209,7 @@ function FrameOverlay({
     return (
       <meshStandardMaterial
         color={map ? '#ffffff' : color}
-        map={map}
+        map={map ?? null}
         roughness={rough}
         metalness={0.02}
       />
@@ -393,13 +394,14 @@ function HostedPart({
   part: Part
   config: SceneLook
 }) {
-  const mat = styleFor(part, config)
+  const mat = styleFor(part, config, parent)
   const alongX = part.axis === 'x'
   const radius = Math.min(part.size[1], part.size[2]) / 2
+  const pitch = part.pitch ?? 0
   return (
     <mesh
       position={localOnTilt(parent, part)}
-      rotation={alongX ? [0, 0, Math.PI / 2] : [0, 0, 0]}
+      rotation={alongX ? [pitch, 0, Math.PI / 2] : [pitch, 0, 0]}
       castShadow
     >
       {part.shape === 'cyl' ? (
@@ -544,8 +546,10 @@ function Moving({
 function Still({ part, config }: { part: Part; config: SceneLook }) {
   const mat = styleFor(part, config)
   const cyl = part.shape === 'cyl'
-  const radius = Math.min(part.size[0], part.size[2]) / 2
   const alongX = part.axis === 'x'
+  const radius = alongX
+    ? Math.min(part.size[1], part.size[2]) / 2
+    : Math.min(part.size[0], part.size[2]) / 2
   return (
     <mesh
       position={part.pos}

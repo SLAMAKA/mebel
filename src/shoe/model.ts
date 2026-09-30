@@ -31,15 +31,26 @@ export type ShoeConfig = {
   height: number
   depth: number
   drawers: number
+  /** Щиты параллельно фасаду: обувь стоит носком вверх. */
+  rows: number
 }
 
 export const shoeSections = 2
 
+/** Минимальный просвет кармана между щитами под обувь стоя. */
+export const shoeRowClearMm = 80
+
+/** Высота одного ящика у ОБ-5: (1500 − 60) / 4. */
+export const shoeDrawerModuleMm = 360
+/** Опора и доля крышки/дна в общей высоте. */
+export const shoeHeightExtraMm = 60
+
 export const shoeLimits = {
   width: { min: 450, max: 900, step: 10 },
-  height: { min: 900, max: 1800, step: 10 },
+  height: { min: 780, max: 2400, step: 10 },
   depth: { min: 240, max: 360, step: 10 },
   drawers: { min: 2, max: 6, step: 1 },
+  rows: { min: 1, max: 3, step: 1 },
 }
 
 /** Габарит ОБ-5: высота 1500 ширина 600 глубина 280. Четыре ящика. */
@@ -57,6 +68,26 @@ export const defaultShoeConfig: ShoeConfig = {
   height: 1500,
   depth: 280,
   drawers: 4,
+  rows: 2,
+}
+
+/** Высота корпуса от числа ящиков. */
+export function shoeHeightForDrawers(drawers: number) {
+  const count = clampInt(drawers, shoeLimits.drawers.min, shoeLimits.drawers.max)
+  return clamp(
+    count * shoeDrawerModuleMm + shoeHeightExtraMm,
+    shoeLimits.height.min,
+    shoeLimits.height.max,
+  )
+}
+
+/** Фактическая высота фасада ящика в мм. */
+export function shoeFaceHeightMm(config: ShoeConfig) {
+  const lift = 50
+  const gap = 4
+  const body = Math.max(400, config.height - lift)
+  const face = (body - gap * (config.drawers + 1)) / config.drawers
+  return Math.round(face)
 }
 
 const handleIds = new Set(handles.map((item) => item.id))
@@ -68,15 +99,26 @@ function clampInt(value: number, min: number, max: number) {
 
 export function sanitizeShoe(input: ShoeConfig): ShoeConfig {
   const next: ShoeConfig = { ...defaultShoeConfig, ...input }
-  next.width = clamp(next.width, shoeLimits.width.min, shoeLimits.width.max)
-  next.height = clamp(next.height, shoeLimits.height.min, shoeLimits.height.max)
-  next.depth = clamp(next.depth, shoeLimits.depth.min, shoeLimits.depth.max)
   next.drawers = clampInt(next.drawers, shoeLimits.drawers.min, shoeLimits.drawers.max)
+  next.rows = clampInt(next.rows, shoeLimits.rows.min, shoeLimits.rows.max)
+  next.width = clamp(next.width, shoeLimits.width.min, shoeLimits.width.max)
+  next.depth = clamp(next.depth, shoeLimits.depth.min, shoeLimits.depth.max)
+  next.height = clamp(next.height, shoeLimits.height.min, shoeLimits.height.max)
   if (next.handlePos !== 'top' && next.handlePos !== 'middle' && next.handlePos !== 'bottom') next.handlePos = 'top'
   if (next.handleSide !== 'open' && next.handleSide !== 'hinge') next.handleSide = 'open'
   if (!handleIds.has(next.handle)) next.handle = 'knob'
   if (!frameIds.has(next.frame)) next.frame = 'plain'
   return next
+}
+
+/** Смена числа ящиков с пересчётом высоты корпуса. */
+export function setShoeDrawers(config: ShoeConfig, drawers: number): ShoeConfig {
+  const count = clampInt(drawers, shoeLimits.drawers.min, shoeLimits.drawers.max)
+  return sanitizeShoe({
+    ...config,
+    drawers: count,
+    height: shoeHeightForDrawers(count),
+  })
 }
 
 export function readShoeConfig(value: unknown): ShoeConfig | null {
@@ -96,11 +138,16 @@ export type ShoeRuleTip = {
 export function checkShoeRules(config: ShoeConfig): ShoeRuleTip[] {
   const tips: ShoeRuleTip[] = []
   const bay = Math.round(config.width / shoeSections)
-  const box = Math.round((config.height - 50) / config.drawers)
+  const box = shoeFaceHeightMm(config)
+  const pocket = Math.round((config.depth - 50 - 16 * config.rows) / (config.rows + 1))
   if (bay < 250) tips.push({ field: 'width', level: 'bad', text: `Секция ${bay} мм. Для пары обуви тесно.` })
   else if (bay < 280) tips.push({ field: 'width', level: 'warn', text: `Секция ${bay} мм. У ОБ-5 около 300 мм.` })
   if (config.depth < 270) tips.push({ field: 'depth', level: 'warn', text: 'Для обуви глубина обычно от 280 мм.' })
-  if (box < 300) tips.push({ field: 'drawers', level: 'warn', text: `Ящик ${box} мм. Откидной удобнее от 320 мм.` })
+  if (box < 280) tips.push({ field: 'drawers', level: 'warn', text: `Ящик ${box} мм. Откидной удобнее от 300 мм.` })
+  else if (box < 320) tips.push({ field: 'height', level: 'warn', text: `Фасад ящика ${box} мм. У ОБ-5 около 360 мм.` })
+  if (pocket < shoeRowClearMm) {
+    tips.push({ field: 'rows', level: 'warn', text: `Карман ~${pocket} мм. Для обуви стоя лучше от ${shoeRowClearMm} мм.` })
+  }
   return tips
 }
 
