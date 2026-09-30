@@ -570,6 +570,17 @@ h2 {
   touch-action: none;
 }
 
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .view canvas { display: block; }
 
 .hud {
@@ -577,12 +588,38 @@ h2 {
   left: 16px;
   bottom: 16px;
   pointer-events: none;
+  z-index: 2;
 }
 
 .hud button {
   pointer-events: auto;
   margin-top: 8px;
   background: rgba(36, 28, 22, 0.88);
+}
+
+.person-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(36, 28, 22, 0.88);
+  border: 1px solid #4a4036;
+  color: #f4efe6;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.person-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #c4a36e;
+  cursor: pointer;
 }
 
 .dim {

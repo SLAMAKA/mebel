@@ -10,6 +10,10 @@ export type DoorId = 'swing' | 'slide' | 'open'
 export type FrameId = 'plain' | 'thin' | 'classic' | 'wide' | 'double' | 'bevel'
 export type MirrorId = 'none' | 'full' | 'panel' | 'oval' | 'strip'
 
+export type { RunnerId } from './drawer/sizing'
+import { drawerBoxFromOpening, findRunner, runners, type RunnerId } from './drawer/sizing'
+export { runners }
+
 /** Поля которые нужны 3D-сцене. */
 export type SceneLook = {
   carcassBoard: BoardId
@@ -34,6 +38,8 @@ export type Config = SceneLook & {
   shelves: number
   drawers: number
   doors: DoorId
+  /** Направляющие выдвижных ящиков (тумба). */
+  runner: RunnerId
 }
 
 export type Limits = {
@@ -134,6 +140,7 @@ const sharedBoard = {
   base: 'plinth' as BaseId,
   frame: 'plain' as FrameId,
   mirror: 'none' as MirrorId,
+  runner: 'ball' as RunnerId,
 }
 
 export const limitsByKind: Record<KindId, Limits> = {
@@ -237,6 +244,41 @@ export function checkRules(config: Config): RuleTip[] {
     if (config.drawers >= 4 && config.height < 650) {
       tips.push({ field: 'drawers', level: 'warn', text: 'Много ящиков при низкой тумбе. Фасады будут узкие.' })
     }
+    const T = 0.018
+    const lift = config.base === 'legs' ? 0.08 : 0.06
+    const bodyH = Math.max(0.2, config.height / 1000 - lift)
+    const innerW = config.width / 1000 - 2 * T
+    const openingW = (innerW - (config.sections - 1) * T) / Math.max(1, config.sections)
+    const slotH = (bodyH - 2 * T) / Math.max(1, config.drawers)
+    const openingD = Math.max(0.12, config.depth / 1000 - 0.04)
+    const box = drawerBoxFromOpening(
+      { openingW, openingH: slotH, openingD },
+      config.runner,
+    )
+    const runner = findRunner(config.runner)
+    if (box.boxW < 0.2) {
+      tips.push({
+        field: 'runner',
+        level: 'bad',
+        text: `Короб ${Math.round(box.boxW * 1000)} мм. Для ${runner.name.toLowerCase()} тесно.`,
+      })
+    } else if (box.boxW < 0.28) {
+      tips.push({
+        field: 'runner',
+        level: 'warn',
+        text: `Короб ${Math.round(box.boxW * 1000)} мм при ${runner.name.toLowerCase()}.`,
+      })
+    }
+    if (config.depth < 350) {
+      tips.push({ field: 'depth', level: 'warn', text: 'Для направляющих глубина обычно от 350–400 мм.' })
+    }
+    if (box.runnerLen < 0.3 && config.depth >= 350) {
+      tips.push({
+        field: 'depth',
+        level: 'warn',
+        text: `Направляющая вышла ${Math.round(box.runnerLen * 1000)} мм — маловато под глубину.`,
+      })
+    }
     return tips
   }
 
@@ -278,6 +320,7 @@ const kindIds = new Set(kinds.map((item) => item.id))
 const handleIds = new Set(handles.map((item) => item.id))
 const frameIds = new Set(frameModes.map((item) => item.id))
 const mirrorIds = new Set(mirrorModes.map((item) => item.id))
+const runnerIds = new Set(runners.map((item) => item.id))
 
 export function sanitize(input: Config): Config {
   const kind = kindIds.has(input.kind) ? input.kind : 'wardrobe'
@@ -300,6 +343,7 @@ export function sanitize(input: Config): Config {
     next.frame = legacy.facadeFrame ? 'classic' : 'plain'
   }
   if (!mirrorIds.has(next.mirror)) next.mirror = 'none'
+  if (!runnerIds.has(next.runner)) next.runner = 'ball'
   if (kind === 'pedestal') {
     next.doors = 'open'
     next.mirror = 'none'

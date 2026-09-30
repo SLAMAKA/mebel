@@ -12,9 +12,11 @@ import {
   limitsFor,
   mirrorModes,
   presetsFor,
+  runners,
   tipFor,
   type Config,
 } from './model'
+import { drawerBoxFromOpening, findRunner } from './drawer/sizing'
 import {
   BaseChoice,
   Choice,
@@ -73,7 +75,7 @@ export function Panel({
           findById(handles, config.handle).name,
         ].filter(Boolean).join(' · ')
   const sizeSummary = isPedestal
-    ? `${config.width} × ${config.height} × ${config.depth} · ${config.drawers} ящ.`
+    ? `${config.width} × ${config.height} × ${config.depth} · ${config.drawers} ящ. · ${findRunner(config.runner).name}`
     : `${config.width} × ${config.height} × ${config.depth} · ${config.sections} сек.`
 
   function save() {
@@ -83,6 +85,25 @@ export function Panel({
     link.download = `${config.kind}.json`
     link.click()
     URL.revokeObjectURL(link.href)
+  }
+
+  function runnerHint(cfg: Config) {
+    const T = 0.018
+    const lift = cfg.base === 'legs' ? 0.08 : 0.06
+    const bodyH = Math.max(0.2, cfg.height / 1000 - lift)
+    const innerW = cfg.width / 1000 - 2 * T
+    const bay = (innerW - (cfg.sections - 1) * T) / Math.max(1, cfg.sections)
+    const innerH = bodyH - 2 * T
+    const slotH = innerH / Math.max(1, cfg.drawers)
+    const openingD = Math.max(0.12, cfg.depth / 1000 - 0.04)
+    const box = drawerBoxFromOpening(
+      { openingW: bay, openingH: slotH, openingD },
+      cfg.runner,
+    )
+    const runner = findRunner(cfg.runner)
+    return (
+      `${runner.name} ${Math.round(box.runnerLen * 1000)} мм · короб ${Math.round(box.boxW * 1000)}×${Math.round(box.boxH * 1000)}×${Math.round(box.boxD * 1000)} мм · ход ${Math.round(box.travel * 1000)} мм · зазор ${Math.round(runner.sideClear * 1000)} мм/сторона`
+    )
   }
 
   return (
@@ -132,14 +153,24 @@ export function Panel({
           onChange={(sections) => onChange({ ...config, sections })}
         />
         {isPedestal ? (
-          <Measure
-            label="Ящики в колонке"
-            unit="шт"
-            value={config.drawers}
-            {...lim.drawers}
-            tip={tip('drawers')}
-            onChange={(drawers) => onChange({ ...config, drawers })}
-          />
+          <>
+            <Measure
+              label="Ящики в колонке"
+              unit="шт"
+              value={config.drawers}
+              {...lim.drawers}
+              tip={tip('drawers')}
+              onChange={(drawers) => onChange({ ...config, drawers })}
+            />
+            <Choice
+              label="Направляющие"
+              value={config.runner}
+              options={runners}
+              tip={tip('runner')}
+              onChange={(runner) => onChange({ ...config, runner })}
+            />
+            <p className="door-place-hint">{runnerHint(config)}</p>
+          </>
         ) : (
           <Measure
             label="Полки в секции"

@@ -16,6 +16,7 @@ import {
   type HandleSideId,
   type MirrorId,
 } from './model'
+import { drawerBoxFromOpening, findRunner, type RunnerId } from './drawer/sizing'
 
 export type Role = 'carcass' | 'facade' | 'back' | 'plinth' | 'metal'
 export type Move = 'swing-left' | 'swing-right' | 'slide-left' | 'slide-right' | 'drawer' | 'tilt'
@@ -37,6 +38,8 @@ export type Part = {
   pitch?: number
   /** Деталь едет вместе с этой фасадной деталью. */
   host?: string
+  /** Ход выдвижения ящика по Z, м. */
+  travel?: number
   /** Только для раскроя. На сцене не рисуется. */
   ghost?: boolean
 }
@@ -209,6 +212,7 @@ function cabinetBody(config: Config, withDoors: boolean): Part[] {
 
 function pedestal(config: Config): Part[] {
   const T = PANEL_T
+  const BOARD = 0.016
   const w = mm(config.width)
   const h = mm(config.height)
   const d = mm(config.depth)
@@ -216,6 +220,7 @@ function pedestal(config: Config): Part[] {
   const bodyH = Math.max(0.2, h - lift)
   const sections = Math.max(1, config.sections)
   const drawers = Math.max(1, config.drawers)
+  const runnerId = (config.runner ?? 'ball') as RunnerId
   const parts: Part[] = [
     ...shell('cab', 0, lift, 0, w, bodyH, d),
     ...support('cab', config.base, 0, 0, w, d, lift),
@@ -226,6 +231,9 @@ function pedestal(config: Config): Part[] {
   const origin = -innerW / 2
   const innerH = bodyH - 2 * T
   const y0 = lift + T
+  const innerFront = d / 2 - 0.001
+  const innerBack = -d / 2 + 0.008 + 0.006
+  const openingD = Math.max(0.12, innerFront - innerBack)
 
   for (let i = 1; i < sections; i++) {
     const x = origin + i * bay + (i - 0.5) * T
@@ -237,37 +245,101 @@ function pedestal(config: Config): Part[] {
     })
   }
 
-  for (let s = 0; s < sections; s++) {
-    const left = origin + s * (bay + T)
-    const clear = bay
-    if (clear < 0.03) continue
-    for (let k = 1; k < drawers; k++) {
-      parts.push({
-        key: `cab-tray-${s}-${k}`,
-        size: [clear - 0.002, T, d - 0.1],
-        pos: [left + clear / 2, y0 + (k * innerH) / drawers, -0.02],
-        role: 'carcass',
-      })
-    }
-  }
-
   const gap = 0.003
   const faceH = (bodyH - gap * (drawers + 1)) / drawers
   const doorZ = d / 2 + T / 2 + 0.001
+  const slotH = innerH / drawers
+  const runner = findRunner(runnerId)
+
   for (let s = 0; s < sections; s++) {
     const faceW = (w - gap * (sections + 1)) / sections
-    const x = -w / 2 + gap + faceW / 2 + s * (faceW + gap)
+    const faceX = -w / 2 + gap + faceW / 2 + s * (faceW + gap)
+    const bayLeft = origin + s * (bay + T)
+    const openingW = bay
+
     for (let k = 0; k < drawers; k++) {
-      const y = lift + gap + faceH / 2 + k * (faceH + gap)
+      const faceKey = `cab-drawer-${s}-${k}`
+      const faceY = lift + gap + faceH / 2 + k * (faceH + gap)
+      const slotBottom = y0 + k * slotH
+      const box = drawerBoxFromOpening(
+        { openingW, openingH: slotH, openingD },
+        runnerId,
+      )
+
       parts.push({
-        key: `cab-drawer-${s}-${k}`,
+        key: faceKey,
         size: [faceW, faceH, T],
-        pos: [x, y, doorZ],
+        pos: [faceX, faceY, doorZ],
         role: 'facade',
         move: 'drawer',
         face: 'pz',
         mirror: 'none',
+        travel: box.travel,
       })
+
+      const boxX = bayLeft + openingW / 2
+      const floorY = slotBottom + box.bottomClear + BOARD / 2
+      const wallH = Math.max(0.05, box.boxH - BOARD)
+      const sideY = floorY + BOARD / 2 + wallH / 2
+      const boxFront = innerFront - 0.004
+      const boxZ = boxFront - box.boxD / 2
+      const sideX = box.boxW / 2 - BOARD / 2
+
+      // Короб ящика едет с фасадом.
+      parts.push(
+        {
+          key: `cab-floor-${s}-${k}`,
+          size: [box.boxW, BOARD, box.boxD],
+          pos: [boxX, floorY, boxZ],
+          role: 'carcass',
+          host: faceKey,
+        },
+        {
+          key: `cab-side-l-${s}-${k}`,
+          size: [BOARD, wallH, box.boxD],
+          pos: [boxX - sideX, sideY, boxZ],
+          role: 'carcass',
+          host: faceKey,
+        },
+        {
+          key: `cab-side-r-${s}-${k}`,
+          size: [BOARD, wallH, box.boxD],
+          pos: [boxX + sideX, sideY, boxZ],
+          role: 'carcass',
+          host: faceKey,
+        },
+        {
+          key: `cab-box-back-${s}-${k}`,
+          size: [Math.max(0.06, box.boxW - BOARD * 2), wallH * 0.92, BOARD],
+          pos: [boxX, sideY, boxZ - box.boxD / 2 + BOARD / 2],
+          role: 'carcass',
+          host: faceKey,
+        },
+      )
+
+      // Неподвижная часть направляющей на корпусе + подвижная на ящике.
+      const railY = floorY + BOARD / 2 + 0.012
+      const railLen = box.runnerLen
+      for (const [name, sign] of [
+        ['l', -1],
+        ['r', 1],
+      ] as const) {
+        const carcassX = boxX + sign * (openingW / 2 - runner.sideClear * 0.45)
+        const boxRailX = boxX + sign * (box.boxW / 2 + 0.003)
+        parts.push({
+          key: `cab-rail-fixed-${name}-${s}-${k}`,
+          size: [0.01, 0.018, railLen],
+          pos: [carcassX, railY, boxFront - railLen / 2],
+          role: 'metal',
+        })
+        parts.push({
+          key: `cab-rail-move-${name}-${s}-${k}`,
+          size: [0.008, 0.014, Math.max(0.1, railLen * 0.92)],
+          pos: [boxRailX, railY, boxZ],
+          role: 'metal',
+          host: faceKey,
+        })
+      }
     }
   }
 
@@ -408,6 +480,25 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
   rows.push({ name: 'Секции', value: `${config.sections}` })
   if (config.kind === 'pedestal') {
     rows.push({ name: 'Ящики', value: `${config.drawers} в колонке` })
+    const runner = findRunner(config.runner)
+    const lift = config.base === 'legs' ? 0.08 : 0.06
+    const bodyH = Math.max(0.2, mm(config.height) - lift)
+    const innerW = mm(config.width) - 2 * PANEL_T
+    const openingW = (innerW - (config.sections - 1) * PANEL_T) / Math.max(1, config.sections)
+    const slotH = (bodyH - 2 * PANEL_T) / Math.max(1, config.drawers)
+    const openingD = Math.max(0.12, mm(config.depth) - 0.04)
+    const sample = drawerBoxFromOpening(
+      { openingW, openingH: slotH, openingD },
+      config.runner,
+    )
+    rows.push({
+      name: 'Направляющие',
+      value: `${runner.name} ${Math.round(sample.runnerLen * 1000)} мм · ход ${Math.round(sample.travel * 1000)} мм`,
+    })
+    rows.push({
+      name: 'Короб ящика',
+      value: `${Math.round(sample.boxW * 1000)} × ${Math.round(sample.boxH * 1000)} × ${Math.round(sample.boxD * 1000)} мм · зазор ${Math.round(runner.sideClear * 1000)} мм/сторона`,
+    })
   } else {
     rows.push({ name: 'Полки', value: `${config.shelves} в секции` })
     rows.push({ name: 'Двери', value: findById(doorModes, config.doors).name })
@@ -434,7 +525,12 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
   rows.push({ name: 'Фасады', value: `${fronts.length} шт` })
   const hingeCount = swings.reduce((sum, part) => sum + hingeHeights(part.size[1]).length, 0)
   if (hingeCount) rows.push({ name: 'Петли', value: `${hingeCount} шт скрытые` })
-  if (drawers.length) rows.push({ name: 'Направляющие', value: `${drawers.length} пар` })
+  if (drawers.length && config.kind !== 'pedestal') {
+    rows.push({ name: 'Направляющие', value: `${drawers.length} пар` })
+  }
+  if (drawers.length && config.kind === 'pedestal') {
+    rows.push({ name: 'Пар направляющих', value: `${drawers.length} шт` })
+  }
 
   const sheetRow = (name: string, roles: Role[]) => {
     const area = parts.filter((part) => roles.includes(part.role)).reduce((sum, part) => sum + panelArea(part.size), 0)
@@ -462,6 +558,7 @@ export function partLabel(part: Part) {
   if (part.key.includes('mech') || part.key.includes('rail')) return 'Механизм ящика'
   if (part.key.includes('hinge')) return 'Петля'
   if (part.key.includes('floor')) return 'Дно ящика'
+  if (part.key.includes('box-back')) return 'Зад ящика'
   if (part.key.includes('lip')) return 'Упор пятки'
   if (part.key.includes('tray')) return 'Полка яруса'
   if (part.key.includes('shelf')) return 'Дно ящика'
@@ -569,6 +666,14 @@ export function buildMarks(config: Config, parts: Part[]): MarkRow[] {
   const rows: MarkRow[] = []
   for (const part of parts) {
     if (!part.move) continue
+    if (part.move === 'drawer') {
+      const travelMm = Math.round((part.travel ?? 0.22) * 1000)
+      const runner = findRunner(config.runner)
+      rows.push({
+        title: partLabel(part),
+        text: `${runner.name} · ход ${travelMm} мм · посадка от низа проёма ${Math.round(runner.bottomClear * 1000)} мм · зазор ${Math.round(runner.sideClear * 1000)} мм/сторона`,
+      })
+    }
     if (part.move === 'tilt') {
       rows.push({
         title: partLabel(part),
