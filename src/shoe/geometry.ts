@@ -22,6 +22,18 @@ import {
 import { sanitizeShoe, shoeSections, type ShoeConfig } from './model'
 
 const LIFT = 0.05
+const BOARD = 0.016
+/** Люфт между фасадами и по наружному контуру. */
+const FACADE_GAP = 0.004
+/** Фасад не прижат к торцу корпуса. */
+const FRONT_GAP = 0.002
+/** Место под откидной механизм с каждой стороны. */
+const MECH_GAP = 0.013
+/** Люфт ящика внутри проёма. */
+const BOX_PLAY = 0.004
+/** Ящик не доходит до задней стенки. */
+const BACK_GAP = 0.012
+const BACK_FACE = 0.014
 
 function hiddenLegs(w: number, d: number, h: number): Part[] {
   const spots = [
@@ -55,58 +67,99 @@ function buildShoeParts(config: ShoeConfig): Part[] {
   ]
 
   const drawers = config.drawers
-  const gap = 0.003
-  const faceH = (bodyH - gap * (drawers + 1)) / drawers
-  const faceW = w - gap * 2
-  const doorZ = d / 2 + T / 2 + 0.001
-  const thick = 0.016
+  const faceH = (bodyH - FACADE_GAP * (drawers + 1)) / drawers
+  const faceW = w - FACADE_GAP * 2
+  const doorZ = d / 2 + FRONT_GAP + T / 2
+  const innerW = w - 2 * T
+  const innerH = bodyH - 2 * T
+  const boxW = innerW - MECH_GAP * 2
+  const slot = (innerH - BOX_PLAY * (drawers + 1)) / drawers
+  const trayFront = d / 2 + FRONT_GAP - 0.001
+  const trayBack = -d / 2 + BACK_FACE + BACK_GAP
+  const trayD = Math.max(0.08, trayFront - trayBack)
+  const trayZ = (trayFront + trayBack) / 2
+  const wallH = Math.max(0.04, slot - BOARD - BOX_PLAY)
 
   for (let k = 0; k < drawers; k++) {
-    const y = LIFT + gap + faceH / 2 + k * (faceH + gap)
+    const faceKey = `shoe-face-${k}`
+    const faceY = LIFT + FACADE_GAP + faceH / 2 + k * (faceH + FACADE_GAP)
     parts.push({
-      key: `shoe-face-${k}`,
+      key: faceKey,
       size: [faceW, faceH, T],
-      pos: [0, y, doorZ],
+      pos: [0, faceY, doorZ],
       role: 'facade',
       move: 'tilt',
       face: 'pz',
       mirror: 'none',
     })
 
-    const trayD = Math.min(0.2, Math.max(0.12, faceH * 0.5))
-    const sideH = faceH * 0.58
-    const z = doorZ - T / 2 - trayD / 2
-    const innerW = Math.max(0.08, faceW - 0.02)
+    const y0 = LIFT + T + BOX_PLAY + k * (slot + BOX_PLAY)
+    const floorY = y0 + BOARD / 2
+    const wallY = y0 + BOARD + wallH / 2
     parts.push(
       {
         key: `shoe-shelf-${k}`,
-        size: [innerW, thick, trayD],
-        pos: [0, y - faceH / 2 + thick / 2, z],
+        size: [boxW, BOARD, trayD],
+        pos: [0, floorY, trayZ],
         role: 'carcass',
-        ghost: true,
+        host: faceKey,
       },
       {
         key: `shoe-side-l-${k}`,
-        size: [thick, sideH, trayD],
-        pos: [-(faceW / 2 - thick / 2), y - faceH / 2 + sideH / 2, z],
+        size: [BOARD, wallH, trayD],
+        pos: [-(boxW / 2 - BOARD / 2), wallY, trayZ],
         role: 'carcass',
-        ghost: true,
+        host: faceKey,
       },
       {
         key: `shoe-side-r-${k}`,
-        size: [thick, sideH, trayD],
-        pos: [faceW / 2 - thick / 2, y - faceH / 2 + sideH / 2, z],
+        size: [BOARD, wallH, trayD],
+        pos: [boxW / 2 - BOARD / 2, wallY, trayZ],
         role: 'carcass',
-        ghost: true,
+        host: faceKey,
       },
       {
         key: `shoe-div-${k}`,
-        size: [thick, sideH * 0.72, trayD * 0.92],
-        pos: [0, y - faceH / 2 + sideH * 0.42, z],
+        size: [BOARD, wallH * 0.86, trayD - 0.008],
+        pos: [0, y0 + BOARD + (wallH * 0.86) / 2, trayZ],
         role: 'carcass',
-        ghost: true,
+        host: faceKey,
       },
     )
+
+    const railT = 0.004
+    const railH = Math.max(0.04, slot - BOX_PLAY * 2)
+    const railD = Math.min(trayD * 0.72, trayD - 0.02)
+    const railY = y0 + BOX_PLAY + railH / 2
+    for (const [name, sign] of [
+      ['l', -1],
+      ['r', 1],
+    ] as const) {
+      const innerFace = sign * (w / 2 - T)
+      parts.push({
+        key: `shoe-mech-${name}-${k}`,
+        size: [railT, railH, railD],
+        pos: [innerFace - sign * (0.001 + railT / 2), railY, trayZ],
+        role: 'metal',
+      })
+    }
+
+    const hingeY = faceY - faceH / 2 + 0.001
+    const hingeZ = doorZ + T / 2
+    for (const [name, sign] of [
+      ['l', -1],
+      ['r', 1],
+    ] as const) {
+      parts.push({
+        key: `shoe-hinge-${name}-${k}`,
+        size: [0.036, 0.008, 0.008],
+        pos: [sign * (faceW / 2 - 0.06), hingeY, hingeZ],
+        role: 'metal',
+        shape: 'cyl',
+        axis: 'x',
+        host: faceKey,
+      })
+    }
   }
 
   return parts
@@ -127,6 +180,9 @@ function makeShoeSpec(config: ShoeConfig, parts: Part[]): SpecRow[] {
     { name: 'Ящики', value: `${config.drawers} откидных` },
     { name: 'Секции', value: `${shoeSections} в каждом ящике` },
     { name: 'Механизм', value: 'Откидной ящик на нижней петле' },
+    { name: 'Петли', value: `${faces.length * 2} шт по нижней кромке` },
+    { name: 'Люфт фасада', value: '4 мм по контуру' },
+    { name: 'Зазор механизма', value: '13 мм с каждой стороны' },
     { name: 'Опора', value: `Скрытые опоры / ${finish.name}` },
     { name: 'Корпус', value: `${carcass.name} / ${carcassColor.name}` },
     {

@@ -376,52 +376,51 @@ function MirrorOverlay({
   )
 }
 
-function ShoeTray({
+function localOnTilt(parent: Part, child: Part): [number, number, number] {
+  return [
+    child.pos[0] - parent.pos[0],
+    child.pos[1] - (parent.pos[1] - parent.size[1] / 2),
+    child.pos[2] - (parent.pos[2] + parent.size[2] / 2),
+  ]
+}
+
+function HostedPart({
+  parent,
   part,
   config,
-  meshX,
 }: {
+  parent: Part
   part: Part
   config: SceneLook
-  meshX: number
 }) {
-  const board = styleFor({ ...part, role: 'carcass' }, config)
-  const w = part.size[0]
-  const h = part.size[1]
-  const thick = 0.016
-  const trayD = Math.min(0.2, Math.max(0.12, h * 0.5))
-  const z = -part.size[2] / 2 - trayD / 2
-  const sideH = h * 0.58
-
+  const mat = styleFor(part, config)
+  const alongX = part.axis === 'x'
+  const radius = Math.min(part.size[1], part.size[2]) / 2
   return (
-    <group position={[meshX, 0, 0]}>
-      <mesh position={[0, -h / 2 + thick / 2, z]} castShadow>
-        <boxGeometry args={[Math.max(0.08, w - 0.02), thick, trayD]} />
-        <Material mat={board} />
-      </mesh>
-      <mesh position={[-(w / 2 - thick / 2), -h / 2 + sideH / 2, z]} castShadow>
-        <boxGeometry args={[thick, sideH, trayD]} />
-        <Material mat={board} />
-      </mesh>
-      <mesh position={[w / 2 - thick / 2, -h / 2 + sideH / 2, z]} castShadow>
-        <boxGeometry args={[thick, sideH, trayD]} />
-        <Material mat={board} />
-      </mesh>
-      <mesh position={[0, -h / 2 + sideH * 0.42, z]} castShadow>
-        <boxGeometry args={[thick, sideH * 0.72, trayD * 0.92]} />
-        <Material mat={board} />
-      </mesh>
-    </group>
+    <mesh
+      position={localOnTilt(parent, part)}
+      rotation={alongX ? [0, 0, Math.PI / 2] : [0, 0, 0]}
+      castShadow
+    >
+      {part.shape === 'cyl' ? (
+        <cylinderGeometry args={[radius, radius, alongX ? part.size[0] : part.size[1], 16]} />
+      ) : (
+        <boxGeometry args={part.size} />
+      )}
+      <Material mat={mat} />
+    </mesh>
   )
 }
 
 function Moving({
   part,
+  extras,
   open,
   config,
   onToggle,
 }: {
   part: Part
+  extras: Part[]
   open: boolean
   config: SceneLook
   onToggle: (key: string) => void
@@ -440,7 +439,8 @@ function Moving({
       : part.pos[0]
   const pivotY = tilt ? part.pos[1] - part.size[1] / 2 : part.pos[1]
   const meshY = tilt ? part.size[1] / 2 : 0
-  const pivotZ = part.pos[2]
+  const meshZ = tilt ? -part.size[2] / 2 : 0
+  const pivotZ = tilt ? part.pos[2] + part.size[2] / 2 : part.pos[2]
   const meshX = left ? part.size[0] / 2 : right ? -part.size[0] / 2 : 0
   const plan = part.move && config.handle !== 'none'
     ? handlePlan(part, config.handle, config.handlePos, config.handleSide)
@@ -483,7 +483,7 @@ function Moving({
   return (
     <group position={[pivotX, pivotY, pivotZ]}>
       <group ref={anim}>
-        <group position={[0, meshY, 0]}>
+        <group position={[0, meshY, meshZ]}>
         <mesh
           position={[meshX, 0, 0]}
           castShadow
@@ -505,7 +505,6 @@ function Moving({
           <boxGeometry args={part.size} />
           <Material mat={mat} hot={hot} />
         </mesh>
-        {tilt && <ShoeTray part={part} config={config} meshX={meshX} />}
         {part.role === 'facade' && (
           <FrameOverlay
             size={part.size}
@@ -534,6 +533,9 @@ function Moving({
           )
         })}
         </group>
+        {tilt && extras.map((extra) => (
+          <HostedPart key={extra.key} parent={part} part={extra} config={config} />
+        ))}
       </group>
     </group>
   )
@@ -543,10 +545,16 @@ function Still({ part, config }: { part: Part; config: SceneLook }) {
   const mat = styleFor(part, config)
   const cyl = part.shape === 'cyl'
   const radius = Math.min(part.size[0], part.size[2]) / 2
+  const alongX = part.axis === 'x'
   return (
-    <mesh position={part.pos} castShadow receiveShadow>
+    <mesh
+      position={part.pos}
+      rotation={alongX ? [0, 0, Math.PI / 2] : [0, 0, 0]}
+      castShadow
+      receiveShadow
+    >
       {cyl ? (
-        <cylinderGeometry args={[radius, radius, part.size[1], 20]} />
+        <cylinderGeometry args={[radius, radius, alongX ? part.size[0] : part.size[1], 20]} />
       ) : (
         <boxGeometry args={part.size} />
       )}
@@ -657,9 +665,18 @@ export function Stage({
         <meshStandardMaterial color="#f6f2ea" roughness={1} />
       </mesh>
       <ContactShadows position={[0, 0.001, 0]} opacity={0.28} scale={14} blur={2.2} far={5} color="#6d5848" frames={1} />
-      {compiled.parts.filter((part) => !part.ghost).map((part) => (
+      {compiled.parts.filter((part) => !part.ghost && !part.host).map((part) => (
         part.move
-          ? <Moving key={part.key} part={part} open={Boolean(open[part.key])} config={config} onToggle={onToggle} />
+          ? (
+            <Moving
+              key={part.key}
+              part={part}
+              extras={compiled.parts.filter((extra) => extra.host === part.key)}
+              open={Boolean(open[part.key])}
+              config={config}
+              onToggle={onToggle}
+            />
+          )
           : <Still key={part.key} part={part} config={config} />
       ))}
       <Rulers dims={compiled.dims} />
