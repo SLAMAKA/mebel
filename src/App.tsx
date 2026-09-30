@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import { MiniPage } from './mini/page'
 import { PedestalPage, WardrobePage } from './pages'
+import { ShoePage } from './shoe/page'
 
 const routes = [
   { path: '/', name: 'Шкаф' },
   { path: '/mini', name: 'Мини' },
+  { path: '/shoe', name: 'Обувница' },
   { path: '/pedestal', name: 'Тумба' },
 ] as const
 
 function readPath() {
   const raw = window.location.hash.replace(/^#/, '') || '/'
-  if (raw === '/mini' || raw === '/pedestal') return raw
+  if (raw === '/mini' || raw === '/shoe' || raw === '/pedestal') return raw
   return '/'
 }
 
@@ -43,7 +45,13 @@ export default function App() {
   return (
     <div className="shell">
       <ProductNav path={path} />
-      {path === '/mini' ? <MiniPage /> : path === '/pedestal' ? <PedestalPage /> : <WardrobePage />}
+      {path === '/mini'
+        ? <MiniPage />
+        : path === '/shoe'
+          ? <ShoePage />
+          : path === '/pedestal'
+            ? <PedestalPage />
+            : <WardrobePage />}
     </div>
   )
 }

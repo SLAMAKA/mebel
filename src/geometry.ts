@@ -18,7 +18,7 @@ import {
 } from './model'
 
 export type Role = 'carcass' | 'facade' | 'back' | 'plinth' | 'metal'
-export type Move = 'swing-left' | 'swing-right' | 'slide-left' | 'slide-right' | 'drawer'
+export type Move = 'swing-left' | 'swing-right' | 'slide-left' | 'slide-right' | 'drawer' | 'tilt'
 export type Face = 'pz' | 'px'
 
 export type Part = {
@@ -31,6 +31,8 @@ export type Part = {
   mirror?: MirrorId
   /** Форма детали. По умолчанию box. */
   shape?: 'box' | 'cyl'
+  /** Только для раскроя. На сцене не рисуется. */
+  ghost?: boolean
 }
 
 export type Span = { w: number; h: number; d: number }
@@ -324,8 +326,8 @@ export function handlePlan(
 
   const y = alongHeight(h, pos)
 
-  // Ящик: ручка по центру фасада.
-  if (part.move === 'drawer') {
+  // Ящик и откидной фасад: ручка по центру.
+  if (part.move === 'drawer' || part.move === 'tilt') {
     if (handle === 'knob') return { holes: [{ x: w * 0.5, y }] }
     if (handle === 'edge') return { holes: [{ x: w * 0.5, y: h * 0.92 }] }
     const span = Math.min(0.28, Math.max(0.12, w * 0.35))
@@ -445,6 +447,7 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
 
 export function partLabel(part: Part) {
   if (part.role === 'facade' && part.mirror && part.mirror !== 'none') return 'Фасад с зеркалом'
+  if (part.role === 'facade' && part.move === 'tilt') return 'Откидной фасад'
   if (part.role === 'facade' && part.move === 'drawer') return 'Фасад ящика'
   if (part.role === 'facade') return 'Фасад'
   if (part.role === 'back') return 'Задняя стенка'
@@ -454,6 +457,7 @@ export function partLabel(part: Part) {
   if (part.key.endsWith('-t')) return 'Крышка'
   if (part.key.endsWith('-b')) return 'Дно'
   if (part.key.endsWith('-l') || part.key.endsWith('-r')) return 'Боковина'
+  if (part.key.includes('side')) return 'Боковина лотка'
   if (part.key.includes('leg')) return 'Ножка'
   return 'Деталь'
 }
@@ -553,6 +557,12 @@ export function buildMarks(config: Config, parts: Part[]): MarkRow[] {
   const rows: MarkRow[] = []
   for (const part of parts) {
     if (!part.move) continue
+    if (part.move === 'tilt') {
+      rows.push({
+        title: partLabel(part),
+        text: 'петля снизу / откидной механизм',
+      })
+    }
     if (part.move === 'swing-left' || part.move === 'swing-right') {
       const side = part.move === 'swing-left' ? 'слева' : 'справа'
       rows.push({

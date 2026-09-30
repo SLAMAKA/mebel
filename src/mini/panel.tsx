@@ -169,7 +169,7 @@ export function MiniPanel({
         <Measure label="Глубина" value={config.depth} {...miniLimits.depth} tip={tip('depth')} onChange={(depth) => onChange({ ...config, depth })} />
         <Measure label="Секции" unit="шт" value={config.sections} {...miniLimits.sections} tip={tip('sections')} onChange={(sections) => onChange({ ...config, sections })} />
         <Measure
-          label={config.front === 'shoe' ? 'Лотки' : 'Полки'}
+          label="Полки"
           unit="шт"
           value={config.shelves}
           {...miniLimits.shelves}
@@ -259,12 +259,8 @@ export function MiniPanel({
         <Choice label="Плита корпуса" value={config.carcassBoard} options={boards} onChange={(carcassBoard) => onChange({ ...config, carcassBoard })} />
         <Choice label="Плита фасада" value={config.facadeBoard} options={boards} onChange={(facadeBoard) => onChange({ ...config, facadeBoard })} />
         <div className="row">
-          <button type="button" className="ghost" onClick={onOpenAll}>
-            {config.front === 'shoe' ? 'Выдвинуть' : 'Открыть'}
-          </button>
-          <button type="button" className="ghost" onClick={onCloseAll}>
-            {config.front === 'shoe' ? 'Задвинуть' : 'Закрыть'}
-          </button>
+          <button type="button" className="ghost" onClick={onOpenAll}>Открыть</button>
+          <button type="button" className="ghost" onClick={onCloseAll}>Закрыть</button>
         </div>
       </Fold>
 
