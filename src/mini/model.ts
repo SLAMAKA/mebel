@@ -16,6 +16,7 @@ import {
   type SceneLook,
   clamp,
 } from '../model'
+import { prunePatterns, sanitizePatterns, type PatternAssign } from '../pattern/catalog'
 import { limitsInOpening, type Envelope } from '../survey/model'
 
 /** Крепление мини-шкафчика. */
@@ -49,6 +50,7 @@ export type MiniConfig = {
   depth: number
   sections: number
   shelves: number
+  patterns: PatternAssign[]
 }
 
 export type MiniLimits = {
@@ -215,6 +217,7 @@ export const defaultMiniConfig: MiniConfig = {
   depth: 320,
   sections: 1,
   shelves: 2,
+  patterns: [],
 }
 
 function clampInt(value: number, min: number, max: number) {
@@ -252,7 +255,14 @@ export function sanitizeMini(input: MiniConfig, opening: Envelope | null = null)
   if (!handleIds.has(next.handle)) next.handle = 'knob'
   if (!frameIds.has(next.frame)) next.frame = 'plain'
   if (next.front === 'open') next.handle = 'none'
+  next.patterns = prunePatterns(sanitizePatterns(next.patterns), miniFacadeKeys(next))
   return next
+}
+
+function miniFacadeKeys(config: MiniConfig) {
+  if (config.front === 'open') return []
+  if (config.front === 'flip') return ['mini-flip']
+  return Array.from({ length: config.sections }, (_, s) => `mini-door-${s}`)
 }
 
 export function readMiniConfig(value: unknown): MiniConfig | null {

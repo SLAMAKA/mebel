@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { compile } from './geometry'
 import { defaultsByKind, limitsFor, readConfig, sanitize, type Config } from './model'
 import { useOrder } from './order/client'
+import { CutlistPage } from './cutlist/page'
 import { Panel } from './panel'
 import { Stage } from './scene'
 import { fitBox, openingBlock, readSurvey, envelopeOf } from './survey/model'
@@ -11,12 +12,12 @@ const meta = {
   wardrobe: {
     title: 'Шкаф',
     subtitle: 'Конструктор корпуса',
-    hint: 'Тяни чтобы повернуть · клик открывает дверцу',
+    hint: 'Тяни чтобы повернуть · клик по фасаду открывает ручку рамку и узор',
   },
   pedestal: {
     title: 'Тумба',
     subtitle: 'Тумба с ящиками',
-    hint: 'Тяни чтобы повернуть · клик выдвигает ящик',
+    hint: 'Тяни чтобы повернуть · клик по фасаду открывает ручку рамку и узор',
   },
 } as const
 
@@ -25,11 +26,15 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [shot, setShot] = useState(0)
   const [note, setNote] = useState('')
+  const [cutOpen, setCutOpen] = useState(false)
+  const [pickedKey, setPickedKey] = useState<string | null>(null)
   const place = useOpening()
   const order = useOrder()
   const limits = limitsFor(kind)
   const compiled = useMemo(() => compile(config, place.survey), [config, place.survey])
   const copy = meta[kind]
+  const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
+  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : (facades[0]?.key ?? null)
 
   function apply(next: Config) {
     setConfig(sanitize({ ...next, kind }, place.opening))
@@ -103,6 +108,20 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
     )
   }
 
+  if (cutOpen) {
+    return (
+      <CutlistPage
+        title={copy.title}
+        nest={compiled.nest}
+        cuts={compiled.cuts}
+        tapes={compiled.tapes}
+        marks={compiled.marks}
+        mill={compiled.mill}
+        onBack={() => setCutOpen(false)}
+      />
+    )
+  }
+
   return (
     <div className="app">
       <Panel
@@ -110,9 +129,6 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         title={copy.title}
         subtitle={copy.subtitle}
         spec={compiled.spec}
-        cuts={compiled.cuts}
-        tapes={compiled.tapes}
-        marks={compiled.marks}
         nest={compiled.nest}
         note={note}
         place={{
@@ -126,6 +142,10 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         onOpenAll={() => setFronts(true)}
         onCloseAll={() => setFronts(false)}
         onLoad={load}
+        onCutlist={() => setCutOpen(true)}
+        parts={compiled.parts}
+        pickedKey={pick}
+        onPick={setPickedKey}
       />
       <main className="view">
         <Stage
@@ -134,7 +154,8 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
           open={open}
           shot={shot}
           opening={place.opening}
-          onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
+          pickedKey={pick}
+          onPickPart={setPickedKey}
         />
         <div className="hud">
           <p>{copy.hint}</p>

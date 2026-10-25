@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { CutRow, MarkRow, TapeRow } from './geometry'
 import {
   bases,
   colors,
@@ -20,6 +19,7 @@ export function Measure({
   max,
   step,
   unit = 'мм',
+  bump,
   tip,
   onChange,
 }: {
@@ -29,12 +29,13 @@ export function Measure({
   max: number
   step: number
   unit?: string
+  bump?: number
   tip?: RuleTip | null
   onChange: (value: number) => void
 }) {
   const [text, setText] = useState(String(value))
   const sent = useRef(value)
-  const bump = Math.max(step, unit === 'шт' ? 1 : 10)
+  const jump = bump ?? Math.max(step, unit === 'шт' ? 1 : 10)
 
   useEffect(() => {
     if (value === sent.current) return
@@ -60,7 +61,7 @@ export function Measure({
       <label className="measure-row">
         <span>{label}</span>
         <span className="measure-value">
-          <button type="button" className="step" onClick={() => push(value - bump)} aria-label="меньше">−</button>
+          <button type="button" className="step" onClick={() => push(value - jump)} aria-label="меньше">−</button>
           <input
             value={text}
             onChange={(event) => setText(event.target.value)}
@@ -69,7 +70,7 @@ export function Measure({
               if (event.key === 'Enter') commit(text)
             }}
           />
-          <button type="button" className="step" onClick={() => push(value + bump)} aria-label="больше">+</button>
+          <button type="button" className="step" onClick={() => push(value + jump)} aria-label="больше">+</button>
           <em>{unit}</em>
         </span>
       </label>
@@ -223,6 +224,8 @@ export function HandleIcon({ id, side }: { id: HandleId; side: HandleSideId }) {
         <path d={bow} />
       ) : id === 'edge' ? (
         <path d={`M${hx} 8v16`} />
+      ) : id === 'cut' ? (
+        <rect x={atOpen ? 12 : 8} y="7" width="12" height="3.2" rx="1.6" className="fill" />
       ) : (
         <path d={`M${hx} 12v8`} />
       )}
@@ -396,12 +399,19 @@ export function Fold({
   title,
   summary,
   children,
+  wake,
 }: {
   title: string
   summary?: string
   children: ReactNode
+  wake?: string | null
 }) {
   const [open, setOpen] = useState(false)
+  const last = useRef(wake)
+  useEffect(() => {
+    if (wake && wake !== last.current) setOpen(true)
+    last.current = wake
+  }, [wake])
   return (
     <section className={open ? 'fold open' : 'fold'}>
       <button type="button" className="fold-head" onClick={() => setOpen((value) => !value)}>
@@ -414,28 +424,4 @@ export function Fold({
       {open && <div className="fold-body">{children}</div>}
     </section>
   )
-}
-
-export function saveCuts(rows: CutRow[], tapes: TapeRow[], marks: MarkRow[]) {
-  const head = ['Деталь', 'Материал', 'Длина', 'Ширина', 'Толщина', 'Кромка', 'Пил длина', 'Пил ширина', 'Количество']
-  const lines = [head.join(';')]
-  for (const row of rows) {
-    lines.push([row.name, row.material, row.length, row.width, row.thick, row.edge, row.sawL, row.sawW, row.qty].join(';'))
-  }
-  lines.push('')
-  lines.push('Кромка')
-  for (const tape of tapes) {
-    lines.push(`${tape.name};нужно ${tape.need} м;заказать ${tape.order} м`)
-  }
-  lines.push('')
-  lines.push('Разметка')
-  for (const mark of marks) {
-    lines.push(`${mark.title};${mark.text}`)
-  }
-  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = 'raspil.csv'
-  link.click()
-  URL.revokeObjectURL(link.href)
 }

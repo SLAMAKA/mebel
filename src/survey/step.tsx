@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   emptyFields,
   envelopeOf,
@@ -63,6 +63,14 @@ export function SurveyStep({
   const opening = 'survey' in parsed ? envelopeOf(parsed.survey) : null
   const block = opening ? openingBlock(opening, limits) : null
 
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && open) setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
   function setField(key: keyof SurveyFields, value: string) {
     setError('')
     onChange({ ...fields, [key]: value })
@@ -86,17 +94,24 @@ export function SurveyStep({
 
   return (
     <div className={open ? 'app survey-app' : 'app survey-app sidebar-shut'}>
-      <aside className={open ? 'panel sidebar open' : 'panel sidebar'}>
+      <aside className={open ? 'panel sidebar open' : 'panel sidebar'} aria-label="Замер">
         <div className="brand">
           <div>
             <h1>{title}</h1>
             <p>Замер</p>
           </div>
-          <button type="button" className="ghost sidebar-close" onClick={() => setOpen(false)}>Скрыть</button>
+          <button
+            type="button"
+            className="ghost sidebar-close"
+            aria-label="Скрыть панель"
+            onClick={() => setOpen(false)}
+          >
+            Скрыть
+          </button>
         </div>
         <p className="survey-lead">{lead}</p>
-        <p className="survey-lead">
-          Запас {GAP_SIDE_MM} мм на сторону · {GAP_TOP_MM} мм сверху · {GAP_BACK_MM} мм сзади.
+        <p className="survey-meta">
+          Запас {GAP_SIDE_MM} мм сбоку · {GAP_TOP_MM} мм сверху · {GAP_BACK_MM} мм сзади
         </p>
         <div className="survey-skirt">
           <p className="survey-kicker">Плинтус</p>
@@ -123,10 +138,9 @@ export function SurveyStep({
           <p className="survey-lead">0 — плинтуса нет. Ширина это выступ от стены.</p>
         </div>
         {opening && (
-          <p className="readout">
+          <p className="survey-readout">
             Проём {opening.openingW} × {opening.openingH} × {opening.openingD} мм
-            <br />
-            Изделие до {opening.maxW} × {opening.maxH} × {opening.maxD} мм
+            <span>Изделие до {opening.maxW} × {opening.maxH} × {opening.maxD} мм</span>
           </p>
         )}
         {opening?.outOfSquare && <p className="warn">Проём не прямой. Корпус останется прямоугольным.</p>}

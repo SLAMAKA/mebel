@@ -15,6 +15,7 @@ import {
   type SceneLook,
   clamp,
 } from '../model'
+import { prunePatterns, sanitizePatterns, type PatternAssign } from '../pattern/catalog'
 import { limitsInOpening, type Envelope } from '../survey/model'
 
 /** Обувница вроде ОБ-5: откидные ящики по две секции. */
@@ -34,6 +35,7 @@ export type ShoeConfig = {
   drawers: number
   /** Щиты параллельно фасаду: обувь стоит носком вверх. */
   rows: number
+  patterns: PatternAssign[]
 }
 
 export const shoeSections = 2
@@ -70,6 +72,7 @@ export const defaultShoeConfig: ShoeConfig = {
   depth: 280,
   drawers: 4,
   rows: 2,
+  patterns: [],
 }
 
 /** Высота корпуса от числа ящиков. */
@@ -110,6 +113,10 @@ export function sanitizeShoe(input: ShoeConfig, opening: Envelope | null = null)
   if (next.handleSide !== 'open' && next.handleSide !== 'hinge') next.handleSide = 'open'
   if (!handleIds.has(next.handle)) next.handle = 'knob'
   if (!frameIds.has(next.frame)) next.frame = 'plain'
+  next.patterns = prunePatterns(
+    sanitizePatterns(next.patterns),
+    Array.from({ length: next.drawers }, (_, k) => `shoe-face-${k}`),
+  )
   return next
 }
 

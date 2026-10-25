@@ -1,24 +1,15 @@
 import { useRef } from 'react'
-import type { CutRow, MarkRow, SpecRow, TapeRow } from '../geometry'
+import type { Part, SpecRow } from '../geometry'
+import { FacadeSection } from '../facade/section'
 import type { NestResult } from '../cutlist/nest'
-import { NestMap } from '../cutlist/NestMap'
-import {
-  boards,
-  finishes,
-  frameModes,
-  handles,
-} from '../model'
+import { CutlistEntry } from '../cutlist/page'
+import { boards } from '../model'
 import {
   BaseChoice,
   Choice,
   Fold,
-  FrameIcon,
-  HandleIcon,
-  HandlePlace,
-  IconPick,
   Measure,
   Swatches,
-  saveCuts,
 } from '../ui'
 import { envelopeOf, fitsOpening, limitsInOpening, type Survey } from '../survey/model'
 import { PlaceBar } from '../survey/step'
@@ -82,9 +73,6 @@ function LegIcon({ id }: { id: MiniLegId }) {
 export function MiniPanel({
   config,
   spec,
-  cuts,
-  tapes,
-  marks,
   nest,
   note,
   place,
@@ -92,12 +80,13 @@ export function MiniPanel({
   onOpenAll,
   onCloseAll,
   onLoad,
+  onCutlist,
+  parts,
+  pickedKey,
+  onPick,
 }: {
   config: MiniConfig
   spec: SpecRow[]
-  cuts: CutRow[]
-  tapes: TapeRow[]
-  marks: MarkRow[]
   nest: NestResult
   note: string
   place: {
@@ -111,6 +100,10 @@ export function MiniPanel({
   onOpenAll: () => void
   onCloseAll: () => void
   onLoad: (file: File) => void
+  onCutlist: () => void
+  parts: Part[]
+  pickedKey: string | null
+  onPick: (key: string) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkMiniRules(config)
@@ -248,43 +241,32 @@ export function MiniPanel({
         <Swatches label="Корпус" value={config.carcassColor} onChange={(carcassColor) => onChange({ ...config, carcassColor })} />
       </Fold>
 
-      <Fold title="Фасад" summary={`${summary.front} · ${summary.frame} · ${summary.handle}`}>
-        <Choice
-          label="Тип"
-          value={config.front}
-          options={miniFronts}
-          tip={tip('front')}
-          onChange={(front) => onChange({ ...config, front })}
-        />
-        {config.front !== 'open' && (
-          <>
-            <IconPick
-              label="Рамка"
-              value={config.frame}
-              options={frameModes}
-              render={(id) => <FrameIcon id={id} />}
-              onChange={(frame) => onChange({ ...config, frame })}
-            />
-            <IconPick
-              label="Ручка"
-              value={config.handle}
-              options={handles}
-              render={(id) => <HandleIcon id={id} side={config.handleSide} />}
-              onChange={(handle) => onChange({ ...config, handle })}
-            />
-            {config.handle !== 'none' && (
-              <>
-                <HandlePlace
-                  pos={config.handlePos}
-                  side={config.handleSide}
-                  onChange={(next) => onChange({ ...config, ...next })}
-                />
-                <Choice label="Покрытие ручки" value={config.finish} options={finishes} onChange={(finish) => onChange({ ...config, finish })} />
-              </>
-            )}
-          </>
+      <FacadeSection
+        title="Фасад"
+        parts={parts}
+        pickedKey={pickedKey}
+        onPick={onPick}
+        look={{
+          frame: config.frame,
+          handle: config.handle,
+          handlePos: config.handlePos,
+          handleSide: config.handleSide,
+          finish: config.finish,
+          patterns: config.patterns,
+        }}
+        onLook={(look) => onChange({ ...config, ...look })}
+        locked={config.front === 'open'}
+        handleLayout="place"
+        header={(
+          <Choice
+            label="Тип"
+            value={config.front}
+            options={miniFronts}
+            tip={tip('front')}
+            onChange={(front) => onChange({ ...config, front })}
+          />
         )}
-      </Fold>
+      />
 
       <Fold title="Ещё">
         <Choice label="Плита корпуса" value={config.carcassBoard} options={boards} onChange={(carcassBoard) => onChange({ ...config, carcassBoard })} />
@@ -318,12 +300,9 @@ export function MiniPanel({
             <li key={row.name}><strong>{row.name}</strong><span>{row.value}</span></li>
           ))}
         </ul>
-        <button type="button" className="ghost" onClick={() => saveCuts(cuts, tapes, marks)}>Скачать раскрой</button>
       </Fold>
 
-      <Fold title="Раскрой" summary={`${nest.sheetCount} лист. · ${Math.round(nest.utilAvg * 100)}%`}>
-        <NestMap nest={nest} />
-      </Fold>
+      <CutlistEntry nest={nest} onOpen={onCutlist} />
     </aside>
   )
 }

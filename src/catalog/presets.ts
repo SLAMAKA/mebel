@@ -13,7 +13,7 @@ export type CatalogPatch = {
   doors?: 'swing' | 'slide' | 'open'
   mirror?: 'none' | 'full' | 'panel' | 'oval' | 'strip'
   frame?: 'plain' | 'thin' | 'classic' | 'wide' | 'double' | 'bevel'
-  handle?: 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'none'
+  handle?: 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'cut' | 'none'
   runner?: 'ball' | 'roller' | 'hidden'
   base?: 'plinth' | 'legs'
 }

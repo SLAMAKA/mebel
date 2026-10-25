@@ -2,7 +2,9 @@ import { useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { ContactShadows, Html, OrbitControls } from '@react-three/drei'
 import { CanvasTexture, DoubleSide, RepeatWrapping, SRGBColorSpace, type Group } from 'three'
-import { handlePlan, hingeHeights, type Compiled, type Part, type Span } from './geometry'
+import { handlePlan, hingeHeights, type Compiled, type HandleSlot, type Part, type Span } from './geometry'
+import { jobFor } from './pattern/jobs'
+import { PatternOverlay } from './pattern/overlay'
 import {
   boards,
   colors,
@@ -97,15 +99,26 @@ function styleFor(part: Part, config: SceneLook, host?: Part): Mat {
   }
 }
 
-function Material({ mat, hot }: { mat: Mat; hot?: boolean }) {
+function Material({
+  mat,
+  hot,
+  picked,
+  twoSided,
+}: {
+  mat: Mat
+  hot?: boolean
+  picked?: boolean
+  twoSided?: boolean
+}) {
   return (
     <meshStandardMaterial
       color={mat.map ? '#ffffff' : mat.color}
       map={mat.map ?? null}
       roughness={mat.roughness}
       metalness={mat.metalness}
-      emissive={hot ? '#ffffff' : '#000000'}
-      emissiveIntensity={hot ? 0.14 : 0}
+      emissive={picked ? '#e28a45' : hot ? '#ffffff' : '#000000'}
+      emissiveIntensity={picked ? 0.22 : hot ? 0.14 : 0}
+      side={twoSided ? DoubleSide : undefined}
     />
   )
 }
@@ -115,8 +128,38 @@ function FinishMaterial({ config }: { config: SceneLook }) {
   return <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
 }
 
+function CutSlot({
+  size,
+  slot,
+}: {
+  size: [number, number, number]
+  slot: HandleSlot
+}) {
+  const x = slot.x - size[0] / 2
+  const y = slot.y - size[1] / 2
+  const deep = size[2] + 0.006
+  const mid = Math.max(0.002, slot.w - slot.h)
+  const r = slot.h / 2
+  return (
+    <group position={[x, y, 0]}>
+      <mesh>
+        <boxGeometry args={[mid, slot.h, deep]} />
+        <meshBasicMaterial color="#14110e" />
+      </mesh>
+      <mesh position={[-mid / 2, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r, r, deep, 16]} />
+        <meshBasicMaterial color="#14110e" />
+      </mesh>
+      <mesh position={[mid / 2, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r, r, deep, 16]} />
+        <meshBasicMaterial color="#14110e" />
+      </mesh>
+    </group>
+  )
+}
+
 function HandleMesh({ handle, config }: { handle: SceneLook['handle']; config: SceneLook }) {
-  if (handle === 'none') return null
+  if (handle === 'none' || handle === 'cut') return null
   if (handle === 'knob') {
     return (
       <mesh position={[0, 0, 0.016]} castShadow>
@@ -437,13 +480,17 @@ function Moving({
   extras,
   open,
   config,
-  onToggle,
+  mill,
+  picked,
+  onPick,
 }: {
   part: Part
   extras: Part[]
   open: boolean
   config: SceneLook
-  onToggle: (key: string) => void
+  mill: Compiled['mill']
+  picked: boolean
+  onPick: (key: string) => void
 }) {
   const anim = useRef<Group>(null)
   const progress = useRef(0)
@@ -521,11 +568,11 @@ function Moving({
           }}
           onClick={(event) => {
             event.stopPropagation()
-            onToggle(part.key)
+            if (part.role === 'facade') onPick(part.key)
           }}
         >
           <boxGeometry args={part.size} />
-          <Material mat={mat} hot={hot} />
+          <Material mat={mat} hot={hot} picked={picked} />
         </mesh>
         {part.role === 'facade' && (
           <FrameOverlay
@@ -537,9 +584,17 @@ function Moving({
           />
         )}
         {part.role === 'facade' && (
+          <PatternOverlay size={part.size} meshX={meshX} job={jobFor(mill, part.key)} />
+        )}
+        {part.role === 'facade' && (
           <MirrorOverlay size={part.size} meshX={meshX} mirror={part.mirror ?? config.mirror} />
         )}
-        {plan && (
+        {plan?.slot && (
+          <group position={[meshX, 0, 0]}>
+            <CutSlot size={part.size} slot={plan.slot} />
+          </group>
+        )}
+        {plan && !plan.slot && (
           <group position={handlePos}>
             <HandleMesh handle={config.handle} config={config} />
           </group>
@@ -566,27 +621,45 @@ function Moving({
   )
 }
 
-function Still({ part, config }: { part: Part; config: SceneLook }) {
+function Still({
+  part,
+  config,
+  mill,
+  picked,
+  onPick,
+}: {
+  part: Part
+  config: SceneLook
+  mill: Compiled['mill']
+  picked: boolean
+  onPick: (key: string) => void
+}) {
   const mat = styleFor(part, config)
   const cyl = part.shape === 'cyl'
   const alongX = part.axis === 'x'
   const radius = alongX
     ? Math.min(part.size[1], part.size[2]) / 2
     : Math.min(part.size[0], part.size[2]) / 2
+  const facade = part.role === 'facade' && !cyl
   return (
-    <mesh
-      position={part.pos}
-      rotation={alongX ? [0, 0, Math.PI / 2] : [0, 0, 0]}
-      castShadow
-      receiveShadow
-    >
-      {cyl ? (
-        <cylinderGeometry args={[radius, radius, alongX ? part.size[0] : part.size[1], 20]} />
-      ) : (
-        <boxGeometry args={part.size} />
-      )}
-      <Material mat={mat} />
-    </mesh>
+    <group position={part.pos} rotation={alongX ? [0, 0, Math.PI / 2] : [0, 0, 0]}>
+      <mesh
+        castShadow
+        receiveShadow
+        onClick={facade ? (event) => {
+          event.stopPropagation()
+          onPick(part.key)
+        } : undefined}
+      >
+        {cyl ? (
+          <cylinderGeometry args={[radius, radius, alongX ? part.size[0] : part.size[1], 20]} />
+        ) : (
+          <boxGeometry args={part.size} />
+        )}
+        <Material mat={mat} picked={picked} />
+      </mesh>
+      {facade && <PatternOverlay size={part.size} meshX={0} job={jobFor(mill, part.key)} />}
+    </group>
   )
 }
 
@@ -947,14 +1020,16 @@ export function Stage({
   open,
   shot,
   opening,
-  onToggle,
+  pickedKey,
+  onPickPart,
 }: {
   config: SceneLook
   compiled: Compiled
   open: Record<string, boolean>
   shot: number
   opening: Envelope | null
-  onToggle: (key: string) => void
+  pickedKey: string | null
+  onPickPart: (key: string) => void
 }) {
   const [showPerson, setShowPerson] = useState(false)
   const roomPlan = defaultRoomPlan
@@ -1024,10 +1099,21 @@ export function Stage({
                   extras={compiled.parts.filter((extra) => extra.host === part.key)}
                   open={Boolean(open[part.key])}
                   config={config}
-                  onToggle={onToggle}
+                  mill={compiled.mill ?? []}
+                  picked={pickedKey === part.key}
+                  onPick={onPickPart}
                 />
               )
-              : <Still key={part.key} part={part} config={config} />
+              : (
+                <Still
+                  key={part.key}
+                  part={part}
+                  config={config}
+                  mill={compiled.mill ?? []}
+                  picked={pickedKey === part.key}
+                  onPick={onPickPart}
+                />
+              )
           ))}
         </group>
         {showPerson && <ScalePerson product={compiled.dims} height={PERSON_H} />}

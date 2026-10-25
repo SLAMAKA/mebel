@@ -16,6 +16,7 @@ import {
   hingeHeights,
   layout,
   mm,
+  partLabel,
   shell,
   support,
   withNest,
@@ -23,6 +24,7 @@ import {
   type Part,
   type SpecRow,
 } from '../geometry'
+import { millJobs, millMarks, millSlots } from '../pattern/jobs'
 import { envelopeOf, surveyLines, type Survey } from '../survey/model'
 import {
   miniFronts,
@@ -219,7 +221,7 @@ function makeMiniSpec(config: MiniConfig, parts: Part[]): SpecRow[] {
   }
   rows.push({
     name: 'Ручка',
-    value: handle.id === 'none' ? 'Без ручки' : `${handle.name} / ${finish.name}`,
+    value: handle.id === 'none' ? 'Без ручки' : handle.id === 'cut' ? 'Вырез в фасаде' : `${handle.name} / ${finish.name}`,
   })
 
   const fronts = parts.filter((part) => part.move)
@@ -255,6 +257,7 @@ function asShopConfig(config: MiniConfig): Config {
     sections: config.sections,
     shelves: config.shelves,
     runner: 'ball',
+    patterns: config.patterns,
   }
 }
 
@@ -264,6 +267,13 @@ export function compileMini(input: MiniConfig, survey: Survey | null = null): Co
   const parts = buildMiniParts(config)
   const placed = layout(parts)
   const shop = asShopConfig(config)
+  const mill = millJobs(
+    placed.parts,
+    config.patterns,
+    config.frame,
+    partLabel,
+    millSlots(placed.parts, config.handle, config.handlePos, config.handleSide),
+  )
   return withNest({
     parts: placed.parts,
     span: placed.span,
@@ -271,6 +281,7 @@ export function compileMini(input: MiniConfig, survey: Survey | null = null): Co
     spec: [...surveyLines(survey, config), ...makeMiniSpec(config, placed.parts)],
     cuts: buildCuts(shop, placed.parts),
     tapes: buildTapes(shop, placed.parts),
-    marks: buildMarks(shop, placed.parts),
+    marks: [...buildMarks(shop, placed.parts), ...millMarks(mill)],
+    mill,
   })
 }

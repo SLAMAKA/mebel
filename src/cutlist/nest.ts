@@ -254,3 +254,43 @@ export function nestSpecRows(nest: NestResult): { name: string; value: string }[
     },
   ]
 }
+
+export function materialLabel(material: string, thick: number) {
+  return material.includes(String(thick)) ? material : `${material} · ${thick} мм`
+}
+
+export type MaterialTab = {
+  key: string
+  label: string
+  material: string
+  thick: number
+  sheets: NestSheet[]
+  utilAvg: number
+}
+
+/** Вкладки раскроя: один материал и толщина на вкладку. */
+export function nestTabs(nest: NestResult): MaterialTab[] {
+  const groups = new Map<string, NestSheet[]>()
+  for (const sheet of nest.sheets) {
+    const key = `${sheet.material}|${sheet.thick}`
+    const list = groups.get(key) ?? []
+    list.push(sheet)
+    groups.set(key, list)
+  }
+  return [...groups.entries()].map(([key, sheets]) => {
+    const first = sheets[0]
+    const utilAvg = sheets.reduce((sum, sheet) => sum + sheet.util, 0) / sheets.length
+    return {
+      key,
+      label: materialLabel(first.material, first.thick),
+      material: first.material,
+      thick: first.thick,
+      sheets,
+      utilAvg,
+    }
+  })
+}
+
+export function cutsForTab(cuts: CutRow[], tab: MaterialTab) {
+  return cuts.filter((row) => row.material === tab.material && row.thick === tab.thick)
+}

@@ -123,37 +123,55 @@ input { font: inherit; }
 }
 
 .survey-app {
-  display: grid;
-  grid-template-columns: min(400px, 100%) 1fr;
+  display: block;
   position: relative;
 }
 
-.survey-app.sidebar-shut {
-  grid-template-columns: 0 1fr;
-}
-
 .survey-app .view {
+  position: absolute;
+  inset: 0;
   height: 100%;
   min-width: 0;
   z-index: 1;
 }
 
-.panel.sidebar {
-  position: relative;
-  z-index: 2;
-  width: auto;
-  min-width: 0;
+.survey-app .brand h1 {
+  font-size: 28px;
+  text-wrap: pretty;
+}
+
+.survey-app .panel.sidebar {
+  position: absolute;
+  z-index: 4;
+  top: 16px;
+  left: 16px;
+  width: min(360px, calc(100% - 32px));
+  height: auto;
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 18px 18px;
+  overflow: auto;
+  border-radius: 20px;
+  background: #241c16;
+  box-shadow: 0 20px 48px rgba(28, 18, 12, 0.42);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .survey-app.sidebar-shut .panel.sidebar {
-  overflow: hidden;
-  padding: 0;
   visibility: hidden;
   pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .sidebar-close {
   margin-left: auto;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .sidebar-open {
@@ -161,20 +179,24 @@ input { font: inherit; }
   z-index: 5;
   top: 16px;
   left: 16px;
+  min-height: 44px;
   border: 0;
   border-radius: 999px;
-  padding: 8px 14px;
+  padding: 8px 16px;
   background: #241c16;
   color: #f4efe6;
   cursor: pointer;
+  box-shadow: 0 12px 28px rgba(28, 18, 12, 0.38);
 }
 
 .survey-app .stage-note {
-  left: 16px;
+  left: auto;
+  right: 16px;
 }
 
 .survey-app.sidebar-shut .stage-note {
-  left: 92px;
+  left: auto;
+  right: 16px;
 }
 
 .logo {
@@ -227,6 +249,20 @@ input { font: inherit; }
   background: #e28a45;
   border-color: #e28a45;
   color: #241c16;
+}
+
+.chip:focus-visible,
+.ghost:focus-visible,
+.fold-head:focus-visible,
+.hud button:focus-visible {
+  outline: 2px solid #e28a45;
+  outline-offset: 2px;
+}
+
+.chip:disabled,
+.ghost:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .icon-chip {
@@ -446,6 +482,27 @@ h2 {
 }
 
 .choice { margin-top: 12px; }
+
+.face-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.face-tabs .chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 8px 6px;
+}
+
+.face-pane {
+  margin-top: 4px;
+}
 
 .choice > span,
 .measure-top span {
@@ -679,10 +736,33 @@ h2 {
 }
 
 .survey-lead {
-  margin: 12px 0 0;
+  margin: 0;
   color: #cbbba8;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.survey-meta {
+  margin: 0;
+  color: #9a8b7a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.survey-readout {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #1c1612;
+  color: #f4efe6;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.survey-readout span {
+  display: block;
+  margin-top: 4px;
+  color: #cbbba8;
 }
 
 .survey-grid {
@@ -709,13 +789,17 @@ h2 {
   padding: 8px 10px;
 }
 
-.survey-field input:focus {
+.survey-field input:focus-visible {
   outline: none;
   border-color: #e28a45;
+  box-shadow: 0 0 0 3px rgba(226, 138, 69, 0.35);
 }
 
 .survey-skirt {
-  margin-top: 16px;
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #312820;
 }
 
 .survey-kicker {
@@ -737,7 +821,13 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.survey-actions .chip,
+.survey-actions .ghost {
+  min-height: 44px;
 }
 
 .place-bar {
@@ -920,6 +1010,236 @@ h2 {
   margin-top: 2px;
 }
 
+.cut-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #e7e0d4;
+  color: #241c16;
+}
+
+.cut-head {
+  background: #241c16;
+  color: #f4efe6;
+  padding: 16px 20px 0;
+}
+
+.cut-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.cut-head h1 {
+  margin: 0;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 32px;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+
+.cut-head p {
+  margin: 4px 0 0;
+  color: #cbbba8;
+  font-size: 13px;
+}
+
+.cut-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.cut-hint {
+  margin: 10px 0 0;
+}
+
+.cut-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 20px 16px;
+  background: #241c16;
+}
+
+.cut-tabs .chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+.cut-tab-meta {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.72;
+}
+
+.cut-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.cut-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 16px;
+  padding: 16px 20px 8px;
+}
+
+.cut-app .nest-card {
+  background: #f4efe6;
+  border-color: #d4c4b0;
+}
+
+.cut-app .nest-card-head {
+  color: #5a4a3c;
+}
+
+.cut-app .nest-svg {
+  background: #efe7d8;
+}
+
+.cut-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.cut-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #f4efe6;
+  border: 1px solid #d4c4b0;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.cut-table caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5a4a3c;
+}
+
+.cut-table th,
+.cut-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e4d8c8;
+  text-align: left;
+}
+
+.cut-table th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7a6a5c;
+  background: #efe7d8;
+}
+
+.cut-table td:nth-child(2),
+.cut-table td:nth-child(3),
+.cut-table td:nth-child(4),
+.cut-table th:nth-child(2),
+.cut-table th:nth-child(3),
+.cut-table th:nth-child(4) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cut-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 8px 20px 32px;
+}
+
+.cut-foot .spec {
+  margin: 0;
+  padding: 10px 12px;
+  background: #241c16;
+  border-radius: 12px;
+  color: #f4efe6;
+}
+
+.cut-foot .spec li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid #3a3129;
+  font-size: 13px;
+}
+
+.cut-foot .spec li:last-child {
+  border-bottom: 0;
+}
+
+.cut-foot .spec strong {
+  color: #cbbba8;
+  font-weight: 500;
+}
+
+.cut-foot .spec span {
+  text-align: right;
+}
+
+.cut-empty {
+  margin: 24px 20px;
+  color: #5a4a3c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .survey-app .panel.sidebar {
+    transition: none;
+  }
+}
+
+@media print {
+  .product-nav,
+  .cut-actions,
+  .cut-head-row .ghost,
+  .cut-hint {
+    display: none !important;
+  }
+
+  .cut-app,
+  .cut-head,
+  .cut-tabs {
+    background: #fff;
+    color: #241c16;
+  }
+
+  .cut-head h1,
+  .cut-head p,
+  .cut-tabs .chip {
+    color: #241c16;
+  }
+
+  .cut-body {
+    display: block;
+    overflow: visible;
+  }
+
+  .cut-side {
+    break-inside: avoid;
+  }
+}
+
 @media (max-width: 860px) {
   .app {
     grid-template-columns: 1fr;
@@ -929,38 +1249,30 @@ h2 {
   .view { order: 1; }
   .panel { order: 2; height: auto; }
 
-  .survey-app,
-  .survey-app.sidebar-shut {
-    display: block;
-    grid-template-columns: none;
-  }
-
-  .survey-app .view {
-    order: 0;
-    height: 100%;
-  }
-
-  .survey-app .panel.sidebar,
-  .survey-app.sidebar-shut .panel.sidebar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: min(400px, 100%);
-    height: 100%;
-    padding: 22px 20px 36px;
-    overflow: auto;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translateX(-105%);
-  }
-
-  .survey-app .panel.sidebar.open {
-    transform: translateX(0);
+  .survey-app .panel.sidebar {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    bottom: auto;
+    width: auto;
+    max-height: min(72vh, calc(100% - 24px));
   }
 
   .survey-app .stage-note,
   .survey-app.sidebar-shut .stage-note {
-    left: 16px;
+    left: auto;
+    right: 12px;
     top: 58px;
+  }
+
+  .cut-app {
+    display: flex;
+    grid-template-columns: none;
+    grid-template-rows: none;
+  }
+
+  .cut-body,
+  .cut-foot {
+    grid-template-columns: 1fr;
   }
 }

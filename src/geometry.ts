@@ -17,6 +17,7 @@ import {
   type MirrorId,
 } from './model'
 import { nestCuts, nestSpecRows, type NestResult } from './cutlist/nest'
+import { millJobs, millMarks, millSlots, type MillJob } from './pattern/jobs'
 import {
   BOARD_T,
   findHandleHardware,
@@ -91,6 +92,7 @@ export type Compiled = {
   tapes: TapeRow[]
   marks: MarkRow[]
   nest: NestResult
+  mill: MillJob[]
 }
 
 export const PANEL_T = BOARD_T.ldsp18
@@ -406,6 +408,24 @@ function alongHeight(h: number, pos: HandlePosId) {
   return h * 0.5
 }
 
+export type HandleSlot = { x: number; y: number; w: number; h: number }
+
+function cutSlot(part: Part, pos: HandlePosId, side: HandleSideId): HandleSlot {
+  const w = part.size[0]
+  const h = part.size[1]
+  const slotH = Math.min(0.03, Math.max(0.02, h * 0.14))
+  const slotW = Math.min(Math.max(0.14, w * 0.55), w - 0.036)
+  const pad = 0.01 + slotH / 2
+  const drawer = part.move === 'drawer' || part.move === 'tilt'
+  const y = pos === 'bottom' ? pad : pos === 'top' ? h - pad : h * 0.5
+  if (drawer) return { x: w * 0.5, y, w: slotW, h: slotH }
+  const hingeLeft = part.move === 'swing-left' || part.move === 'slide-left' || !part.move
+  const openOnLeft = !hingeLeft
+  const onLeft = side === 'open' ? openOnLeft : hingeLeft
+  const x = onLeft ? slotW / 2 + 0.02 : w - slotW / 2 - 0.02
+  return { x, y, w: slotW, h: slotH }
+}
+
 export function handlePlan(
   part: Part,
   handle: HandleId,
@@ -415,6 +435,7 @@ export function handlePlan(
   const w = part.size[0]
   const h = part.size[1]
   if (handle === 'none') return { holes: [] as { x: number; y: number }[] }
+  if (handle === 'cut') return { holes: [] as { x: number; y: number }[], slot: cutSlot(part, pos, side) }
 
   const y = alongHeight(h, pos)
 
@@ -532,6 +553,8 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
     name: 'Ручка',
     value: handle.id === 'none'
       ? 'Без ручки'
+      : handle.id === 'cut'
+        ? `Вырез в фасаде / ${posName}`
       : config.kind === 'pedestal'
         ? `${handle.name} / ${finish.name} / ${posName}${spanNote}`
         : `${handle.name} / ${finish.name} / ${posName} / ${sideName}${spanNote}`,
@@ -724,7 +747,12 @@ export function buildMarks(config: Config, parts: Part[]): MarkRow[] {
     }
     if (config.handle !== 'none') {
       const plan = handlePlan(part, config.handle, config.handlePos, config.handleSide)
-      if (plan.holes.length) {
+      if (plan.slot) {
+        rows.push({
+          title: `${partLabel(part)} · вырез`,
+          text: `${Math.round(plan.slot.w * 1000)}×${Math.round(plan.slot.h * 1000)} мм · от левого ${Math.round((plan.slot.x - plan.slot.w / 2) * 1000)} · от низа ${Math.round((plan.slot.y - plan.slot.h / 2) * 1000)}`,
+        })
+      } else if (plan.holes.length) {
         rows.push({
           title: `${partLabel(part)} · ручка`,
           text: plan.holes.map((hole) => `${Math.round(hole.x * 1000)}×${Math.round(hole.y * 1000)}`).join(' / '),
@@ -740,6 +768,13 @@ export function compile(input: Config, survey: Survey | null = null): Compiled {
   const config = sanitize(input, opening)
   const parts = buildParts(config)
   const placed = layout(parts)
+  const mill = millJobs(
+    placed.parts,
+    config.patterns,
+    config.frame,
+    partLabel,
+    millSlots(placed.parts, config.handle, config.handlePos, config.handleSide),
+  )
   return withNest({
     parts: placed.parts,
     span: placed.span,
@@ -747,6 +782,7 @@ export function compile(input: Config, survey: Survey | null = null): Compiled {
     spec: [...surveyLines(survey, config), ...makeSpec(config, placed.parts)],
     cuts: buildCuts(config, placed.parts),
     tapes: buildTapes(config, placed.parts),
-    marks: buildMarks(config, placed.parts),
+    marks: [...buildMarks(config, placed.parts), ...millMarks(mill)],
+    mill,
   })
 }

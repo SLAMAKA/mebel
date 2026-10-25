@@ -14,6 +14,7 @@ import {
   buildTapes,
   layout,
   mm,
+  partLabel,
   shell,
   withNest,
   type Compiled,
@@ -22,6 +23,7 @@ import {
 } from '../geometry'
 import { sanitizeShoe, shoeFaceHeightMm, shoeSections, type ShoeConfig } from './model'
 import { BOARD_T } from '../hardware/catalog'
+import { millJobs, millMarks, millSlots } from '../pattern/jobs'
 import { envelopeOf, surveyLines, type Survey } from '../survey/model'
 
 const LIFT = 0.05
@@ -330,7 +332,7 @@ function makeShoeSpec(config: ShoeConfig, parts: Part[]): SpecRow[] {
     },
     {
       name: 'Ручка',
-      value: handle.id === 'none' ? 'Без ручки' : `${handle.name} / ${finish.name}`,
+      value: handle.id === 'none' ? 'Без ручки' : handle.id === 'cut' ? 'Вырез в фасаде' : `${handle.name} / ${finish.name}`,
     },
     { name: 'Фасады', value: `${faces.length} шт` },
   ]
@@ -358,6 +360,7 @@ function asShopConfig(config: ShoeConfig): Config {
     sections: 1,
     shelves: 0,
     runner: 'ball',
+    patterns: config.patterns,
   }
 }
 
@@ -366,6 +369,13 @@ export function compileShoe(input: ShoeConfig, survey: Survey | null = null): Co
   const config = sanitizeShoe(input, opening)
   const placed = layout(buildShoeParts(config))
   const shop = asShopConfig(config)
+  const mill = millJobs(
+    placed.parts,
+    config.patterns,
+    config.frame,
+    partLabel,
+    millSlots(placed.parts, config.handle, config.handlePos, config.handleSide),
+  )
   return withNest({
     parts: placed.parts,
     span: placed.span,
@@ -373,6 +383,7 @@ export function compileShoe(input: ShoeConfig, survey: Survey | null = null): Co
     spec: [...surveyLines(survey, config), ...makeShoeSpec(config, placed.parts)],
     cuts: buildCuts(shop, placed.parts),
     tapes: buildTapes(shop, placed.parts),
-    marks: buildMarks(shop, placed.parts),
+    marks: [...buildMarks(shop, placed.parts), ...millMarks(mill)],
+    mill,
   })
 }

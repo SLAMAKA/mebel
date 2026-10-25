@@ -24,7 +24,7 @@ export const hinges: {
   { id: 'wide', name: 'Накладная', cupMm: 35, edgeMm: 5 },
 ]
 
-export type HandleHardwareId = 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'none'
+export type HandleHardwareId = 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'cut' | 'none'
 
 /** Посадочные данные под разметку (мм). */
 export const handleHardware: {
@@ -37,6 +37,7 @@ export const handleHardware: {
   { id: 'rail', name: 'Рейлинг', holeSpanMm: 160 },
   { id: 'bow', name: 'Дуга', holeSpanMm: 96 },
   { id: 'edge', name: 'Профиль' },
+  { id: 'cut', name: 'Вырез' },
   { id: 'none', name: 'Без ручки' },
 ]
 

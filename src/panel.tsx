@@ -1,18 +1,15 @@
 import { useRef } from 'react'
-import type { CutRow, MarkRow, SpecRow, TapeRow } from './geometry'
+import type { Part, SpecRow } from './geometry'
+import { FacadeSection } from './facade/section'
 import type { NestResult } from './cutlist/nest'
-import { NestMap } from './cutlist/NestMap'
+import { CutlistEntry } from './cutlist/page'
 import {
   boards,
   checkRules,
   colors,
   doorModes,
-  finishes,
   findById,
-  frameModes,
-  handles,
   limitsFor,
-  mirrorModes,
   presetsFor,
   runners,
   tipFor,
@@ -26,14 +23,8 @@ import {
   BaseChoice,
   Choice,
   Fold,
-  FrameIcon,
-  HandleIcon,
-  HandlePlace,
-  IconPick,
   Measure,
-  MirrorIcon,
   Swatches,
-  saveCuts,
 } from './ui'
 
 export function Panel({
@@ -41,9 +32,6 @@ export function Panel({
   title,
   subtitle,
   spec,
-  cuts,
-  tapes,
-  marks,
   nest,
   note,
   place,
@@ -51,14 +39,15 @@ export function Panel({
   onOpenAll,
   onCloseAll,
   onLoad,
+  onCutlist,
+  parts,
+  pickedKey,
+  onPick,
 }: {
   config: Config
   title: string
   subtitle: string
   spec: SpecRow[]
-  cuts: CutRow[]
-  tapes: TapeRow[]
-  marks: MarkRow[]
   nest: NestResult
   note: string
   place: {
@@ -72,6 +61,10 @@ export function Panel({
   onOpenAll: () => void
   onCloseAll: () => void
   onLoad: (file: File) => void
+  onCutlist: () => void
+  parts: Part[]
+  pickedKey: string | null
+  onPick: (key: string) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkRules(config)
@@ -80,16 +73,6 @@ export function Panel({
   const lim = limitsInOpening(limitsFor(config.kind), opening)
   const presets = presetsFor(config.kind)
   const isPedestal = config.kind === 'pedestal'
-  const doorSummary = isPedestal
-    ? `${config.drawers} ящ. · ${findById(frameModes, config.frame).name} · ${findById(handles, config.handle).name}`
-    : config.doors === 'open'
-      ? 'без дверей'
-      : [
-          findById(doorModes, config.doors).name,
-          findById(frameModes, config.frame).name,
-          config.mirror !== 'none' ? findById(mirrorModes, config.mirror).name : null,
-          findById(handles, config.handle).name,
-        ].filter(Boolean).join(' · ')
   const sizeSummary = isPedestal
     ? `${config.width} × ${config.height} × ${config.depth} · ${config.drawers} ящ. · ${findRunner(config.runner).name}`
     : `${config.width} × ${config.height} × ${config.depth} · ${config.sections} сек.`
@@ -221,63 +204,34 @@ export function Panel({
         <Swatches label="Корпус" value={config.carcassColor} onChange={(carcassColor) => onChange({ ...config, carcassColor })} />
       </Fold>
 
-      <Fold title={isPedestal ? 'Фасад' : 'Дверь'} summary={doorSummary}>
-        {!isPedestal && (
-          <Choice label="Тип" value={config.doors} options={doorModes} tip={tip('doors')} onChange={(doors) => onChange({ ...config, doors })} />
-        )}
-        {(isPedestal || config.doors !== 'open') && (
-          <>
-            <IconPick
-              label="Рамка"
-              value={config.frame}
-              options={frameModes}
-              render={(id) => <FrameIcon id={id} />}
-              onChange={(frame) => onChange({ ...config, frame })}
-            />
-            {!isPedestal && (
-              <IconPick
-                label="Зеркало"
-                value={config.mirror}
-                options={mirrorModes}
-                tip={tip('mirror')}
-                render={(id) => <MirrorIcon id={id} />}
-                onChange={(mirror) => onChange({ ...config, mirror })}
-              />
-            )}
-            <IconPick
-              label="Ручка"
-              value={config.handle}
-              options={handles}
-              render={(id) => <HandleIcon id={id} side={config.handleSide} />}
-              onChange={(handle) => onChange({ ...config, handle })}
-            />
-            {config.handle !== 'none' && (
-              <>
-                {!isPedestal && (
-                  <HandlePlace
-                    pos={config.handlePos}
-                    side={config.handleSide}
-                    onChange={(next) => onChange({ ...config, ...next })}
-                  />
-                )}
-                {isPedestal && (
-                  <Choice
-                    label="Высота ручки"
-                    value={config.handlePos}
-                    options={[
-                      { id: 'top', name: 'Верх' },
-                      { id: 'middle', name: 'Середина' },
-                      { id: 'bottom', name: 'Низ' },
-                    ]}
-                    onChange={(handlePos) => onChange({ ...config, handlePos })}
-                  />
-                )}
-                <Choice label="Покрытие ручки" value={config.finish} options={finishes} onChange={(finish) => onChange({ ...config, finish })} />
-              </>
-            )}
-          </>
-        )}
-      </Fold>
+      <FacadeSection
+        title={isPedestal ? 'Фасад' : 'Дверь'}
+        parts={parts}
+        pickedKey={pickedKey}
+        onPick={onPick}
+        look={{
+          frame: config.frame,
+          handle: config.handle,
+          handlePos: config.handlePos,
+          handleSide: config.handleSide,
+          finish: config.finish,
+          mirror: config.mirror,
+          patterns: config.patterns,
+        }}
+        onLook={(look) => onChange({ ...config, ...look })}
+        locked={!isPedestal && config.doors === 'open'}
+        showMirror={!isPedestal}
+        handleLayout={isPedestal ? 'height' : 'place'}
+        header={!isPedestal ? (
+          <Choice
+            label="Тип"
+            value={config.doors}
+            options={doorModes}
+            tip={tip('doors')}
+            onChange={(doors) => onChange({ ...config, doors })}
+          />
+        ) : null}
+      />
 
       <Fold title="Ещё">
         <BaseChoice value={config.base} onChange={(base) => onChange({ ...config, base })} />
@@ -316,12 +270,9 @@ export function Panel({
             <li key={row.name}><strong>{row.name}</strong><span>{row.value}</span></li>
           ))}
         </ul>
-        <button type="button" className="ghost" onClick={() => saveCuts(cuts, tapes, marks)}>Скачать раскрой</button>
       </Fold>
 
-      <Fold title="Раскрой" summary={`${nest.sheetCount} лист. · ${Math.round(nest.utilAvg * 100)}%`}>
-        <NestMap nest={nest} />
-      </Fold>
+      <CutlistEntry nest={nest} onOpen={onCutlist} />
     </aside>
   )
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useOrder } from '../order/client'
+import { CutlistPage } from '../cutlist/page'
 import { Stage } from '../scene'
 import { envelopeOf, fitBox, openingBlock, readSurvey } from '../survey/model'
 import { SurveyStep, useOpening } from '../survey/step'
@@ -19,10 +20,14 @@ export function MiniPage() {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [shot, setShot] = useState(0)
   const [note, setNote] = useState('')
+  const [cutOpen, setCutOpen] = useState(false)
+  const [pickedKey, setPickedKey] = useState<string | null>(null)
   const place = useOpening()
   const order = useOrder()
   const compiled = useMemo(() => compileMini(config, place.survey), [config, place.survey])
   const look = miniAsSceneLook(config)
+  const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
+  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : (facades[0]?.key ?? null)
 
   function apply(next: MiniConfig) {
     setConfig(sanitizeMini(next, place.opening))
@@ -88,14 +93,25 @@ export function MiniPage() {
     )
   }
 
+  if (cutOpen) {
+    return (
+      <CutlistPage
+        title="Мини"
+        nest={compiled.nest}
+        cuts={compiled.cuts}
+        tapes={compiled.tapes}
+        marks={compiled.marks}
+        mill={compiled.mill}
+        onBack={() => setCutOpen(false)}
+      />
+    )
+  }
+
   return (
     <div className="app">
       <MiniPanel
         config={config}
         spec={compiled.spec}
-        cuts={compiled.cuts}
-        tapes={compiled.tapes}
-        marks={compiled.marks}
         nest={compiled.nest}
         note={note}
         place={{
@@ -109,6 +125,10 @@ export function MiniPage() {
         onOpenAll={() => setFronts(true)}
         onCloseAll={() => setFronts(false)}
         onLoad={load}
+        onCutlist={() => setCutOpen(true)}
+        parts={compiled.parts}
+        pickedKey={pick}
+        onPick={setPickedKey}
       />
       <main className="view">
         <Stage
@@ -117,13 +137,14 @@ export function MiniPage() {
           open={open}
           shot={shot}
           opening={place.opening}
-          onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
+          pickedKey={pick}
+          onPickPart={setPickedKey}
         />
         <div className="hud">
           <p>
             {config.mount === 'wall'
-              ? 'Навесной · тяни чтобы повернуть · клик открывает'
-              : 'Напольный · тяни чтобы повернуть · клик открывает'}
+              ? 'Навесной · тяни чтобы повернуть · клик по фасаду открывает ручку рамку и узор'
+              : 'Напольный · тяни чтобы повернуть · клик по фасаду открывает ручку рамку и узор'}
           </p>
           <button type="button" onClick={() => setShot((value) => value + 1)}>В кадр</button>
         </div>

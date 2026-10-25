@@ -1,7 +1,7 @@
 export type KindId = 'wardrobe' | 'pedestal'
 export type BoardId = 'ldsp' | 'mdf' | 'veneer'
 export type ColorId = 'white' | 'oak' | 'walnut' | 'graphite' | 'sage' | 'sand' | 'navy' | 'terra'
-export type HandleId = 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'none'
+export type HandleId = 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'cut' | 'none'
 export type HandlePosId = 'top' | 'middle' | 'bottom'
 export type HandleSideId = 'open' | 'hinge'
 export type FinishId = 'chrome' | 'black' | 'gold' | 'white'
@@ -13,8 +13,10 @@ export type MirrorId = 'none' | 'full' | 'panel' | 'oval' | 'strip'
 export type { RunnerId } from './drawer/sizing'
 import { drawerBoxFromOpening, findRunner, runners, type RunnerId } from './drawer/sizing'
 import { catalogFor, catalogPresets } from './catalog/presets'
+import { prunePatterns, sanitizePatterns, type PatternAssign } from './pattern/catalog'
 import { limitsInOpening, type Envelope } from './survey/model'
 export { runners }
+export type { PatternAssign } from './pattern/catalog'
 
 /** Поля которые нужны 3D-сцене. */
 export type SceneLook = {
@@ -42,6 +44,8 @@ export type Config = SceneLook & {
   doors: DoorId
   /** Направляющие выдвижных ящиков (тумба). */
   runner: RunnerId
+  /** Выборка ЧПУ на фасадах. */
+  patterns: PatternAssign[]
 }
 
 export type Limits = {
@@ -81,6 +85,7 @@ export const handles: { id: HandleId; name: string }[] = [
   { id: 'rail', name: 'Рейлинг' },
   { id: 'bow', name: 'Дуга' },
   { id: 'edge', name: 'Профиль' },
+  { id: 'cut', name: 'Вырез' },
   { id: 'none', name: 'Без ручки' },
 ]
 
@@ -181,6 +186,7 @@ export const defaultsByKind: Record<KindId, Config> = {
     shelves: 3,
     drawers: 0,
     doors: 'swing',
+    patterns: [],
   },
   pedestal: {
     kind: 'pedestal',
@@ -195,6 +201,7 @@ export const defaultsByKind: Record<KindId, Config> = {
     drawers: 3,
     doors: 'open',
     mirror: 'none',
+    patterns: [],
   },
 }
 
@@ -305,6 +312,19 @@ function clampInt(value: number, min: number, max: number) {
   return Math.round(clamp(value, min, max))
 }
 
+function facadeKeysFor(config: Config) {
+  if (config.kind === 'pedestal') {
+    const keys: string[] = []
+    for (let s = 0; s < config.sections; s++) {
+      for (let k = 0; k < config.drawers; k++) keys.push(`cab-drawer-${s}-${k}`)
+    }
+    return keys
+  }
+  if (config.doors === 'open') return []
+  const prefix = config.doors === 'slide' ? 'cab-slide' : 'cab-door'
+  return Array.from({ length: config.sections }, (_, s) => `${prefix}-${s}`)
+}
+
 const kindIds = new Set(kinds.map((item) => item.id))
 const handleIds = new Set(handles.map((item) => item.id))
 const frameIds = new Set(frameModes.map((item) => item.id))
@@ -333,6 +353,7 @@ export function sanitize(input: Config, opening: Envelope | null = null): Config
   }
   if (!mirrorIds.has(next.mirror)) next.mirror = 'none'
   if (!runnerIds.has(next.runner)) next.runner = 'ball'
+  next.patterns = prunePatterns(sanitizePatterns(next.patterns), facadeKeysFor(next))
   if (kind === 'pedestal') {
     next.doors = 'open'
     next.mirror = 'none'

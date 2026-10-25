@@ -1,57 +1,88 @@
-import type { NestResult, NestSheet } from './nest'
+import { pieceFill } from './export'
+import { materialLabel, type NestSheet } from './nest'
 
-function SheetSvg({ sheet, sheetL, sheetW }: { sheet: NestSheet; sheetL: number; sheetW: number }) {
-  const viewW = 280
+function SheetSvg({
+  sheet,
+  sheetL,
+  sheetW,
+  index,
+}: {
+  sheet: NestSheet
+  sheetL: number
+  sheetW: number
+  index: number
+}) {
+  const viewW = 720
   const viewH = Math.round((sheetW / sheetL) * viewW)
   const sx = viewW / sheetL
   const sy = viewH / sheetW
-  const colors = ['#c4a36e', '#8ea394', '#6b8cae', '#b65d42', '#7a7f86', '#5b6b7c']
   return (
-    <svg className="nest-svg" viewBox={`0 0 ${viewW} ${viewH}`} role="img" aria-label={`Лист ${sheet.index + 1}`}>
+    <svg
+      className="nest-svg"
+      viewBox={`0 0 ${viewW} ${viewH}`}
+      role="img"
+      aria-label={`Лист ${index + 1} ${sheet.material} ${sheet.thick} мм`}
+    >
       <rect x={0} y={0} width={viewW} height={viewH} className="nest-sheet" />
-      {sheet.placements.map((piece, i) => (
-        <g key={piece.id}>
-          <rect
-            x={piece.x * sx}
-            y={piece.y * sy}
-            width={piece.w * sx}
-            height={piece.h * sy}
-            fill={colors[i % colors.length]}
-            opacity={0.85}
-            stroke="#2a241e"
-            strokeWidth={0.6}
-          />
-          <title>{`${piece.name} ${Math.round(piece.w)}×${Math.round(piece.h)}${piece.rotated ? ' (пов.)' : ''}`}</title>
-        </g>
-      ))}
+      {sheet.placements.map((piece) => {
+        const w = piece.w * sx
+        const h = piece.h * sy
+        const label = `${piece.name} ${Math.round(piece.w)}×${Math.round(piece.h)}`
+        const show = w > 56 && h > 18
+        return (
+          <g key={piece.id}>
+            <rect
+              x={piece.x * sx}
+              y={piece.y * sy}
+              width={w}
+              height={h}
+              fill={pieceFill(piece.name)}
+              opacity={0.92}
+              stroke="#241c16"
+              strokeWidth={0.8}
+            />
+            {show ? (
+              <text
+                x={piece.x * sx + w / 2}
+                y={piece.y * sy + h / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#241c16"
+                fontSize={Math.min(11, w * 0.12, h * 0.45)}
+              >
+                {label}
+              </text>
+            ) : (
+              <title>{label}</title>
+            )}
+          </g>
+        )
+      })}
     </svg>
   )
 }
 
-export function NestMap({ nest }: { nest: NestResult }) {
-  if (!nest.sheetCount) {
-    return <p className="readout">Нет деталей для раскроя</p>
+export function NestMap({
+  sheets,
+  sheetL,
+  sheetW,
+}: {
+  sheets: NestSheet[]
+  sheetL: number
+  sheetW: number
+}) {
+  if (!sheets.length) {
+    return <p className="cut-empty">На этом материале деталей нет</p>
   }
   return (
     <div className="nest-map">
-      <p className="readout">
-        {nest.sheetCount} лист. · утилизация {Math.round(nest.utilAvg * 100)}% · {nest.sheetL}×{nest.sheetW} · пропил {nest.kerf} мм
-      </p>
-      {nest.sheets.map((sheet) => (
-        <div key={sheet.index} className="nest-card">
+      {sheets.map((sheet, index) => (
+        <article key={sheet.index} className="nest-card">
           <div className="nest-card-head">
-            Лист {sheet.index + 1} · {sheet.material} {sheet.thick} мм · {Math.round(sheet.util * 100)}%
+            Лист {index + 1} · {materialLabel(sheet.material, sheet.thick)} · {Math.round(sheet.util * 100)}%
           </div>
-          <SheetSvg sheet={sheet} sheetL={nest.sheetL} sheetW={nest.sheetW} />
-          <ul className="nest-list">
-            {sheet.placements.map((piece) => (
-              <li key={piece.id}>
-                {piece.name} · {Math.round(piece.w)}×{Math.round(piece.h)}
-                {piece.rotated ? ' · повёрт' : ''}
-              </li>
-            ))}
-          </ul>
-        </div>
+          <SheetSvg sheet={sheet} sheetL={sheetL} sheetW={sheetW} index={index} />
+        </article>
       ))}
     </div>
   )

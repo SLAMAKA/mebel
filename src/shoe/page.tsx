@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOrder } from '../order/client'
+import { CutlistPage } from '../cutlist/page'
 import { Stage } from '../scene'
 import { envelopeOf, fitBox, openingBlock, readSurvey } from '../survey/model'
 import { SurveyStep, useOpening } from '../survey/step'
@@ -20,10 +21,14 @@ export function ShoePage() {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [shot, setShot] = useState(0)
   const [note, setNote] = useState('')
+  const [cutOpen, setCutOpen] = useState(false)
+  const [pickedKey, setPickedKey] = useState<string | null>(null)
   const place = useOpening()
   const order = useOrder()
   const compiled = useMemo(() => compileShoe(config, place.survey), [config, place.survey])
   const look = shoeAsSceneLook(config)
+  const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
+  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : (facades[0]?.key ?? null)
 
   useEffect(() => {
     setOpen({})
@@ -94,14 +99,25 @@ export function ShoePage() {
     )
   }
 
+  if (cutOpen) {
+    return (
+      <CutlistPage
+        title="Обувница"
+        nest={compiled.nest}
+        cuts={compiled.cuts}
+        tapes={compiled.tapes}
+        marks={compiled.marks}
+        mill={compiled.mill}
+        onBack={() => setCutOpen(false)}
+      />
+    )
+  }
+
   return (
     <div className="app">
       <ShoePanel
         config={config}
         spec={compiled.spec}
-        cuts={compiled.cuts}
-        tapes={compiled.tapes}
-        marks={compiled.marks}
         nest={compiled.nest}
         note={note}
         place={{
@@ -115,6 +131,10 @@ export function ShoePage() {
         onOpenAll={() => setFronts(true)}
         onCloseAll={() => setFronts(false)}
         onLoad={load}
+        onCutlist={() => setCutOpen(true)}
+        parts={compiled.parts}
+        pickedKey={pick}
+        onPick={setPickedKey}
       />
       <main className="view">
         <Stage
@@ -123,11 +143,12 @@ export function ShoePage() {
           open={open}
           shot={shot}
           opening={place.opening}
-          onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
+          pickedKey={pick}
+          onPickPart={setPickedKey}
         />
         <div className="hud">
           <p>
-            Обувница · {config.drawers} ящ. по {shoeFaceHeightMm(config)} мм · клик откидывает
+            Обувница · {config.drawers} ящ. по {shoeFaceHeightMm(config)} мм · клик по фасаду открывает ручку рамку и узор
           </p>
           <button type="button" onClick={() => setShot((value) => value + 1)}>В кадр</button>
         </div>
