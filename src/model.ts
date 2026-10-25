@@ -10,6 +10,12 @@ export type DoorId = 'swing' | 'slide' | 'open'
 export type FrameId = 'plain' | 'thin' | 'classic' | 'wide' | 'double' | 'bevel'
 export type MirrorId = 'none' | 'full' | 'panel' | 'oval' | 'strip'
 
+export type { RunnerId } from './drawer/sizing'
+import { drawerBoxFromOpening, findRunner, runners, type RunnerId } from './drawer/sizing'
+import { catalogFor, catalogPresets } from './catalog/presets'
+import { limitsInOpening, type Envelope } from './survey/model'
+export { runners }
+
 /** Поля которые нужны 3D-сцене. */
 export type SceneLook = {
   carcassBoard: BoardId
@@ -34,6 +40,8 @@ export type Config = SceneLook & {
   shelves: number
   drawers: number
   doors: DoorId
+  /** Направляющие выдвижных ящиков (тумба). */
+  runner: RunnerId
 }
 
 export type Limits = {
@@ -134,6 +142,7 @@ const sharedBoard = {
   base: 'plinth' as BaseId,
   frame: 'plain' as FrameId,
   mirror: 'none' as MirrorId,
+  runner: 'ball' as RunnerId,
 }
 
 export const limitsByKind: Record<KindId, Limits> = {
@@ -196,25 +205,12 @@ export type Preset = {
   patch: Partial<Config>
 }
 
-export const presetsByKind: Record<KindId, Preset[]> = {
-  wardrobe: [
-    { name: 'Узкий 60', patch: { width: 600, height: 2100, depth: 520, sections: 1, shelves: 4, doors: 'swing', mirror: 'none' } },
-    { name: 'Стандарт 120', patch: { width: 1200, height: 2200, depth: 560, sections: 2, shelves: 3, doors: 'swing', mirror: 'none' } },
-    { name: 'С зеркалом', patch: { width: 1200, height: 2200, depth: 560, sections: 2, shelves: 3, doors: 'swing', mirror: 'full', frame: 'thin', handle: 'edge' } },
-    { name: 'Широкий 180', patch: { width: 1800, height: 2400, depth: 600, sections: 3, shelves: 4, doors: 'slide', mirror: 'none' } },
-  ],
-  pedestal: [
-    { name: 'Прикроватная', patch: { width: 450, height: 500, depth: 400, sections: 1, drawers: 2, shelves: 0 } },
-    { name: 'ТВ 80', patch: { width: 800, height: 500, depth: 420, sections: 1, drawers: 2, shelves: 0 } },
-    { name: 'Три ящика', patch: { width: 800, height: 720, depth: 450, sections: 1, drawers: 3, shelves: 0 } },
-    { name: 'Двойная', patch: { width: 1000, height: 700, depth: 450, sections: 2, drawers: 3, shelves: 0 } },
-  ],
-}
+export const presetsByKind: Record<KindId, Preset[]> = catalogPresets as Record<KindId, Preset[]>
 
-export const presets = presetsByKind.wardrobe
+export const presets = catalogPresets.wardrobe as Preset[]
 
 export function presetsFor(kind: KindId): Preset[] {
-  return presetsByKind[kind] ?? presetsByKind.wardrobe
+  return catalogFor(kind) as Preset[]
 }
 
 export function findById<T extends { id: string }>(list: T[], id: string) {
@@ -236,6 +232,41 @@ export function checkRules(config: Config): RuleTip[] {
     else if (bay < 350) tips.push({ field: 'sections', level: 'warn', text: `Колонка ${bay} мм. Обычно от 350 мм.` })
     if (config.drawers >= 4 && config.height < 650) {
       tips.push({ field: 'drawers', level: 'warn', text: 'Много ящиков при низкой тумбе. Фасады будут узкие.' })
+    }
+    const T = 0.018
+    const lift = config.base === 'legs' ? 0.08 : 0.06
+    const bodyH = Math.max(0.2, config.height / 1000 - lift)
+    const innerW = config.width / 1000 - 2 * T
+    const openingW = (innerW - (config.sections - 1) * T) / Math.max(1, config.sections)
+    const slotH = (bodyH - 2 * T) / Math.max(1, config.drawers)
+    const openingD = Math.max(0.12, config.depth / 1000 - 0.04)
+    const box = drawerBoxFromOpening(
+      { openingW, openingH: slotH, openingD },
+      config.runner,
+    )
+    const runner = findRunner(config.runner)
+    if (box.boxW < 0.2) {
+      tips.push({
+        field: 'runner',
+        level: 'bad',
+        text: `Короб ${Math.round(box.boxW * 1000)} мм. Для ${runner.name.toLowerCase()} тесно.`,
+      })
+    } else if (box.boxW < 0.28) {
+      tips.push({
+        field: 'runner',
+        level: 'warn',
+        text: `Короб ${Math.round(box.boxW * 1000)} мм при ${runner.name.toLowerCase()}.`,
+      })
+    }
+    if (config.depth < 350) {
+      tips.push({ field: 'depth', level: 'warn', text: 'Для направляющих глубина обычно от 350–400 мм.' })
+    }
+    if (box.runnerLen < 0.3 && config.depth >= 350) {
+      tips.push({
+        field: 'depth',
+        level: 'warn',
+        text: `Направляющая вышла ${Math.round(box.runnerLen * 1000)} мм — маловато под глубину.`,
+      })
     }
     return tips
   }
@@ -278,15 +309,16 @@ const kindIds = new Set(kinds.map((item) => item.id))
 const handleIds = new Set(handles.map((item) => item.id))
 const frameIds = new Set(frameModes.map((item) => item.id))
 const mirrorIds = new Set(mirrorModes.map((item) => item.id))
+const runnerIds = new Set(runners.map((item) => item.id))
 
-export function sanitize(input: Config): Config {
+export function sanitize(input: Config, opening: Envelope | null = null): Config {
   const kind = kindIds.has(input.kind) ? input.kind : 'wardrobe'
   const base = defaultsByKind[kind]
-  const lim = limitsFor(kind)
+  const lim = limitsInOpening(limitsFor(kind), opening)
   const next: Config = { ...base, ...input, kind }
-  next.width = clamp(next.width, lim.width.min, lim.width.max)
-  next.height = clamp(next.height, lim.height.min, lim.height.max)
-  next.depth = clamp(next.depth, lim.depth.min, lim.depth.max)
+  next.width = clamp(next.width, Math.min(lim.width.min, lim.width.max), lim.width.max)
+  next.height = clamp(next.height, Math.min(lim.height.min, lim.height.max), lim.height.max)
+  next.depth = clamp(next.depth, Math.min(lim.depth.min, lim.depth.max), lim.depth.max)
   next.sections = clampInt(next.sections, lim.sections.min, lim.sections.max)
   next.shelves = clampInt(next.shelves, lim.shelves.min, lim.shelves.max)
   next.drawers = clampInt(next.drawers, lim.drawers.min, lim.drawers.max)
@@ -300,6 +332,7 @@ export function sanitize(input: Config): Config {
     next.frame = legacy.facadeFrame ? 'classic' : 'plain'
   }
   if (!mirrorIds.has(next.mirror)) next.mirror = 'none'
+  if (!runnerIds.has(next.runner)) next.runner = 'ball'
   if (kind === 'pedestal') {
     next.doors = 'open'
     next.mirror = 'none'

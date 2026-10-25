@@ -16,17 +16,18 @@ import {
   type SceneLook,
   clamp,
 } from '../model'
+import { limitsInOpening, type Envelope } from '../survey/model'
 
 /** Крепление мини-шкафчика. */
 export type MiniMountId = 'wall' | 'floor'
 
 /** Тип фасада мини. */
-export type MiniFrontId = 'swing' | 'open' | 'flip' | 'shoe'
+export type MiniFrontId = 'swing' | 'open' | 'flip'
 
 /** Стили ножек для напольного мини. */
 export type MiniLegId = 'square' | 'round' | 'pin' | 'block' | 'hairpin'
 
-export type MiniVariantId = 'hang40' | 'hang60' | 'floor60' | 'shoe60' | 'double80' | 'bath50' | 'openShelf'
+export type MiniVariantId = 'hang40' | 'hang60' | 'floor60' | 'double80' | 'bath50' | 'openShelf'
 
 export type MiniConfig = {
   variant: MiniVariantId
@@ -74,7 +75,6 @@ export const miniMounts: { id: MiniMountId; name: string }[] = [
 export const miniFronts: { id: MiniFrontId; name: string }[] = [
   { id: 'swing', name: 'Дверцы' },
   { id: 'flip', name: 'Откидная' },
-  { id: 'shoe', name: 'Обувница' },
   { id: 'open', name: 'Открытый' },
 ]
 
@@ -141,25 +141,6 @@ export const miniVariants: MiniVariant[] = [
       base: 'legs',
       leg: 'pin',
       handle: 'bar',
-    },
-  },
-  {
-    id: 'shoe60',
-    name: 'Обувница 60',
-    hint: 'Выдвижные лотки для обуви',
-    patch: {
-      mount: 'floor',
-      front: 'shoe',
-      width: 600,
-      height: 1100,
-      depth: 320,
-      sections: 1,
-      shelves: 3,
-      base: 'legs',
-      leg: 'pin',
-      handle: 'rail',
-      handlePos: 'top',
-      finish: 'black',
     },
   },
   {
@@ -252,15 +233,16 @@ export function applyMiniVariant(config: MiniConfig, id: MiniVariantId): MiniCon
   return sanitizeMini({ ...config, ...variant.patch, variant: id })
 }
 
-export function sanitizeMini(input: MiniConfig): MiniConfig {
+export function sanitizeMini(input: MiniConfig, opening: Envelope | null = null): MiniConfig {
+  const lim = limitsInOpening(miniLimits, opening)
   const next: MiniConfig = { ...defaultMiniConfig, ...input }
   next.variant = variantIds.has(next.variant) ? next.variant : 'hang60'
   next.mount = mountIds.has(next.mount) ? next.mount : 'wall'
   next.front = frontIds.has(next.front) ? next.front : 'swing'
   next.leg = legIds.has(next.leg) ? next.leg : 'square'
-  next.width = clamp(next.width, miniLimits.width.min, miniLimits.width.max)
-  next.height = clamp(next.height, miniLimits.height.min, miniLimits.height.max)
-  next.depth = clamp(next.depth, miniLimits.depth.min, miniLimits.depth.max)
+  next.width = clamp(next.width, Math.min(lim.width.min, lim.width.max), lim.width.max)
+  next.height = clamp(next.height, Math.min(lim.height.min, lim.height.max), lim.height.max)
+  next.depth = clamp(next.depth, Math.min(lim.depth.min, lim.depth.max), lim.depth.max)
   next.sections = clampInt(next.sections, miniLimits.sections.min, miniLimits.sections.max)
   next.shelves = clampInt(next.shelves, miniLimits.shelves.min, miniLimits.shelves.max)
   if (next.base !== 'plinth' && next.base !== 'legs') next.base = 'plinth'
@@ -270,7 +252,6 @@ export function sanitizeMini(input: MiniConfig): MiniConfig {
   if (!handleIds.has(next.handle)) next.handle = 'knob'
   if (!frameIds.has(next.frame)) next.frame = 'plain'
   if (next.front === 'open') next.handle = 'none'
-  if (next.front === 'shoe' && next.shelves < 2) next.shelves = 2
   return next
 }
 
@@ -298,12 +279,6 @@ export function checkMiniRules(config: MiniConfig): MiniRuleTip[] {
   }
   if (config.front === 'flip' && config.height > 800) {
     tips.push({ field: 'front', level: 'warn', text: 'Откидная выше 800 мм неудобна. Лучше дверцы.' })
-  }
-  if (config.front === 'shoe' && config.depth < 280) {
-    tips.push({ field: 'depth', level: 'warn', text: 'Для обувницы глубина обычно от 300 мм.' })
-  }
-  if (config.front === 'shoe' && config.shelves > 4) {
-    tips.push({ field: 'shelves', level: 'warn', text: 'Больше 4 лотков сделает фасады слишком узкими.' })
   }
   if (config.front === 'open' && config.shelves < 1) {
     tips.push({ field: 'shelves', level: 'warn', text: 'Открытый шкафчик без полок почти пустой.' })

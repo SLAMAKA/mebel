@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { ContactShadows, Html, OrbitControls } from '@react-three/drei'
-import { CanvasTexture, RepeatWrapping, SRGBColorSpace, type Group } from 'three'
+import { CanvasTexture, DoubleSide, RepeatWrapping, SRGBColorSpace, type Group } from 'three'
 import { handlePlan, hingeHeights, type Compiled, type Part, type Span } from './geometry'
 import {
   boards,
@@ -12,6 +12,13 @@ import {
   type ColorId,
   type SceneLook,
 } from './model'
+import {
+  defaultRoomPlan,
+  mainPlacement,
+  roomSizeForOpening,
+  roomSizeForProduct,
+} from './room/plan'
+import type { Envelope } from './survey/model'
 
 type Mat = {
   color: string
@@ -64,7 +71,7 @@ function shade(hex: string, amount: number) {
   return `#${channel(16)}${channel(8)}${channel(0)}`
 }
 
-function styleFor(part: Part, config: SceneLook): Mat {
+function styleFor(part: Part, config: SceneLook, host?: Part): Mat {
   const carcassBoard = findById(boards, config.carcassBoard)
   const facadeBoard = findById(boards, config.facadeBoard)
   const carcassHex = findById(colors, config.carcassColor).hex
@@ -75,7 +82,8 @@ function styleFor(part: Part, config: SceneLook): Mat {
     return { color: finish.color, roughness: finish.roughness, metalness: finish.metalness }
   }
 
-  const painted = part.role === 'facade'
+  // Ящик на фасаде красится цветом фасада (обувница / откидные).
+  const painted = part.role === 'facade' || (part.role === 'carcass' && host?.role === 'facade')
   const board = painted ? facadeBoard : carcassBoard
   const colorId = painted ? config.facadeColor : config.carcassColor
   const hex = painted ? facadeHex : carcassHex
@@ -93,7 +101,7 @@ function Material({ mat, hot }: { mat: Mat; hot?: boolean }) {
   return (
     <meshStandardMaterial
       color={mat.map ? '#ffffff' : mat.color}
-      map={mat.map}
+      map={mat.map ?? null}
       roughness={mat.roughness}
       metalness={mat.metalness}
       emissive={hot ? '#ffffff' : '#000000'}
@@ -208,7 +216,7 @@ function FrameOverlay({
     return (
       <meshStandardMaterial
         color={map ? '#ffffff' : color}
-        map={map}
+        map={map ?? null}
         roughness={rough}
         metalness={0.02}
       />
@@ -376,13 +384,63 @@ function MirrorOverlay({
   )
 }
 
+function localOnTilt(parent: Part, child: Part): [number, number, number] {
+  return [
+    child.pos[0] - parent.pos[0],
+    child.pos[1] - (parent.pos[1] - parent.size[1] / 2),
+    child.pos[2] - (parent.pos[2] + parent.size[2] / 2),
+  ]
+}
+
+function localOnDrawer(parent: Part, child: Part): [number, number, number] {
+  return [
+    child.pos[0] - parent.pos[0],
+    child.pos[1] - parent.pos[1],
+    child.pos[2] - parent.pos[2],
+  ]
+}
+
+function HostedPart({
+  parent,
+  part,
+  config,
+  mode,
+}: {
+  parent: Part
+  part: Part
+  config: SceneLook
+  mode: 'tilt' | 'drawer'
+}) {
+  const mat = styleFor(part, config, parent)
+  const alongX = part.axis === 'x'
+  const radius = Math.min(part.size[1], part.size[2]) / 2
+  const pitch = part.pitch ?? 0
+  const position = mode === 'tilt' ? localOnTilt(parent, part) : localOnDrawer(parent, part)
+  return (
+    <mesh
+      position={position}
+      rotation={alongX ? [pitch, 0, Math.PI / 2] : [pitch, 0, 0]}
+      castShadow
+    >
+      {part.shape === 'cyl' ? (
+        <cylinderGeometry args={[radius, radius, alongX ? part.size[0] : part.size[1], 16]} />
+      ) : (
+        <boxGeometry args={part.size} />
+      )}
+      <Material mat={mat} />
+    </mesh>
+  )
+}
+
 function Moving({
   part,
+  extras,
   open,
   config,
   onToggle,
 }: {
   part: Part
+  extras: Part[]
   open: boolean
   config: SceneLook
   onToggle: (key: string) => void
@@ -393,14 +451,18 @@ function Moving({
   const swing = part.move === 'swing-left' || part.move === 'swing-right'
   const left = part.move === 'swing-left'
   const right = part.move === 'swing-right'
-  const shoe = part.key.includes('shoe')
+  const tilt = part.move === 'tilt'
+  const drawer = part.move === 'drawer'
+  const travel = part.travel ?? 0.22
   const pivotX = left
     ? part.pos[0] - part.size[0] / 2
     : right
       ? part.pos[0] + part.size[0] / 2
       : part.pos[0]
-  const pivotY = part.pos[1]
-  const pivotZ = part.pos[2]
+  const pivotY = tilt ? part.pos[1] - part.size[1] / 2 : part.pos[1]
+  const meshY = tilt ? part.size[1] / 2 : 0
+  const meshZ = tilt ? -part.size[2] / 2 : 0
+  const pivotZ = tilt ? part.pos[2] + part.size[2] / 2 : part.pos[2]
   const meshX = left ? part.size[0] / 2 : right ? -part.size[0] / 2 : 0
   const plan = part.move && config.handle !== 'none'
     ? handlePlan(part, config.handle, config.handlePos, config.handleSide)
@@ -433,18 +495,17 @@ function Moving({
     if (right) group.rotation.y = amount * 1.15
     if (part.move === 'slide-left') group.position.x = -amount * Math.min(part.size[0] * 0.6, 0.42)
     if (part.move === 'slide-right') group.position.x = amount * Math.min(part.size[0] * 0.6, 0.42)
-    if (part.move === 'drawer') group.position.z = amount * (shoe ? 0.34 : 0.22)
+    if (drawer) group.position.z = amount * travel
+    if (tilt) group.rotation.x = amount * 1.05
   })
 
   const hingeSpots = swing ? hingeHeights(part.size[1]) : []
   const mat = styleFor(part, config)
-  const finish = findById(finishes, config.finish)
-  const rackW = part.size[0] * 0.82
-  const rackD = 0.22
 
   return (
     <group position={[pivotX, pivotY, pivotZ]}>
       <group ref={anim}>
+        <group position={[0, meshY, meshZ]}>
         <mesh
           position={[meshX, 0, 0]}
           castShadow
@@ -466,26 +527,6 @@ function Moving({
           <boxGeometry args={part.size} />
           <Material mat={mat} hot={hot} />
         </mesh>
-        {shoe && (
-          <group position={[meshX, -part.size[1] * 0.08, -part.size[2] / 2 - rackD / 2 - 0.01]}>
-            <mesh castShadow>
-              <boxGeometry args={[rackW, 0.008, rackD]} />
-              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
-            </mesh>
-            <mesh position={[0, 0.04, -rackD * 0.15]} rotation={[0.55, 0, 0]} castShadow>
-              <boxGeometry args={[rackW * 0.92, 0.006, 0.12]} />
-              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
-            </mesh>
-            <mesh position={[-rackW / 2 + 0.008, 0.03, 0]} castShadow>
-              <boxGeometry args={[0.008, 0.06, rackD]} />
-              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
-            </mesh>
-            <mesh position={[rackW / 2 - 0.008, 0.03, 0]} castShadow>
-              <boxGeometry args={[0.008, 0.06, rackD]} />
-              <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
-            </mesh>
-          </group>
-        )}
         {part.role === 'facade' && (
           <FrameOverlay
             size={part.size}
@@ -513,6 +554,13 @@ function Moving({
             </mesh>
           )
         })}
+        </group>
+        {tilt && extras.map((extra) => (
+          <HostedPart key={extra.key} parent={part} part={extra} config={config} mode="tilt" />
+        ))}
+        {drawer && extras.map((extra) => (
+          <HostedPart key={extra.key} parent={part} part={extra} config={config} mode="drawer" />
+        ))}
       </group>
     </group>
   )
@@ -521,11 +569,19 @@ function Moving({
 function Still({ part, config }: { part: Part; config: SceneLook }) {
   const mat = styleFor(part, config)
   const cyl = part.shape === 'cyl'
-  const radius = Math.min(part.size[0], part.size[2]) / 2
+  const alongX = part.axis === 'x'
+  const radius = alongX
+    ? Math.min(part.size[1], part.size[2]) / 2
+    : Math.min(part.size[0], part.size[2]) / 2
   return (
-    <mesh position={part.pos} castShadow receiveShadow>
+    <mesh
+      position={part.pos}
+      rotation={alongX ? [0, 0, Math.PI / 2] : [0, 0, 0]}
+      castShadow
+      receiveShadow
+    >
       {cyl ? (
-        <cylinderGeometry args={[radius, radius, part.size[1], 20]} />
+        <cylinderGeometry args={[radius, radius, alongX ? part.size[0] : part.size[1], 20]} />
       ) : (
         <boxGeometry args={part.size} />
       )}
@@ -534,10 +590,11 @@ function Still({ part, config }: { part: Part; config: SceneLook }) {
   )
 }
 
-function Rulers({ dims }: { dims: Span }) {
+function Rulers({ dims, roomH, roomLabel }: { dims: Span; roomH: number; roomLabel: string }) {
   const y = 0.02
   const z = dims.d / 2 + 0.38
   const x = dims.w / 2 + 0.24
+  const roomX = -Math.max(dims.w / 2 + 0.55, 0.9)
   return (
     <group>
       <Html position={[0, -2, 0]} style={{ display: 'none' }}>
@@ -572,6 +629,75 @@ function Rulers({ dims }: { dims: Span }) {
       <Html position={[0, 0.28, z]} center style={{ pointerEvents: 'none' }}>
         <div className="dim">ширина {Math.round(dims.w * 1000)} мм</div>
       </Html>
+      <mesh position={[roomX, roomH / 2, dims.d / 2]}>
+        <boxGeometry args={[0.006, roomH, 0.006]} />
+        <meshBasicMaterial color="#8a7364" />
+      </mesh>
+      <mesh position={[roomX, 0.01, dims.d / 2]}>
+        <boxGeometry args={[0.014, 0.014, 0.014]} />
+        <meshBasicMaterial color="#8a7364" />
+      </mesh>
+      <mesh position={[roomX, roomH, dims.d / 2]}>
+        <boxGeometry args={[0.014, 0.014, 0.014]} />
+        <meshBasicMaterial color="#8a7364" />
+      </mesh>
+      <Html position={[roomX, roomH * 0.72, dims.d / 2 + 0.02]} center style={{ pointerEvents: 'none' }}>
+        <div className="dim">{roomLabel}</div>
+      </Html>
+    </group>
+  )
+}
+
+/** Пол и стены. Размер приходит снаружи: от изделия или от проёма. */
+function Room({ size }: { size: { w: number; d: number; h: number } }) {
+  const roomW = size.w
+  const roomD = size.d
+  const roomH = size.h
+  const backZ = -roomD / 2
+  const wallT = 0.04
+  const floorY = 0
+  const ceilY = roomH
+  // Светлые стены, но чуть холоднее мебели — фасад не сливается.
+  const backWall = '#e8ecf1'
+  const sideWall = '#eef1f5'
+  const floorColor = '#e6ddd0'
+  const ceilColor = '#f7f9fb'
+  const base = '#c5cdd6'
+
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={[0, floorY, 0]} receiveShadow>
+        <planeGeometry args={[roomW, roomD]} />
+        <meshStandardMaterial color={floorColor} roughness={0.96} />
+      </mesh>
+      <mesh position={[0, ceilY, 0]} rotation-x={Math.PI / 2} receiveShadow>
+        <planeGeometry args={[roomW, roomD]} />
+        <meshStandardMaterial color={ceilColor} roughness={1} side={DoubleSide} />
+      </mesh>
+      <mesh position={[0, roomH / 2, backZ]} receiveShadow>
+        <planeGeometry args={[roomW, roomH]} />
+        <meshStandardMaterial color={backWall} roughness={0.92} />
+      </mesh>
+      <mesh position={[-roomW / 2, roomH / 2, 0]} rotation-y={Math.PI / 2} receiveShadow>
+        <planeGeometry args={[roomD, roomH]} />
+        <meshStandardMaterial color={sideWall} roughness={0.94} />
+      </mesh>
+      <mesh position={[roomW / 2, roomH / 2, 0]} rotation-y={-Math.PI / 2} receiveShadow>
+        <planeGeometry args={[roomD, roomH]} />
+        <meshStandardMaterial color="#e9edf2" roughness={0.94} />
+      </mesh>
+      <mesh position={[0, 0.04, backZ + wallT / 2]}>
+        <boxGeometry args={[roomW - 0.02, 0.08, wallT]} />
+        <meshStandardMaterial color={base} roughness={0.9} />
+      </mesh>
+      <mesh position={[-roomW / 2 + wallT / 2, 0.04, 0]}>
+        <boxGeometry args={[wallT, 0.08, roomD - 0.02]} />
+        <meshStandardMaterial color={base} roughness={0.9} />
+      </mesh>
+      <mesh position={[roomW / 2 - wallT / 2, 0.04, 0]}>
+        <boxGeometry args={[wallT, 0.08, roomD - 0.02]} />
+        <meshStandardMaterial color={base} roughness={0.9} />
+      </mesh>
     </group>
   )
 }
@@ -583,73 +709,305 @@ function cameraFor(dims: Span): [number, number, number] {
   return [dist * 0.38, dims.h * 0.48, dist * 0.92]
 }
 
+const PERSON_H = 1.75
+
+function LimbMat({ color, rough = 0.82 }: { color: string; rough?: number }) {
+  return <meshStandardMaterial color={color} roughness={rough} metalness={0.03} />
+}
+
+/**
+ * Масштабный человек 175 см в духе archviz-манекена.
+ * Без «лица» — только силуэт, смотрит на изделие.
+ */
+function ScalePerson({ product, height }: { product: Span; height: number }) {
+  const s = height / PERSON_H
+  const body = '#6e7278'
+  const dark = '#4d5158'
+  const light = '#8a8e94'
+
+  const footH = 0.025 * s
+  const shinH = 0.43 * s
+  const thighH = 0.44 * s
+  const pelvisH = 0.14 * s
+  const torsoH = 0.48 * s
+  const neckH = 0.06 * s
+  const headR = 0.1 * s
+  const shoulderW = 0.4 * s
+  const hipW = 0.28 * s
+  const stance = 0.085 * s
+
+  const ankleY = footH
+  const kneeY = ankleY + shinH
+  const hipY = kneeY + thighH
+  const waistY = hipY + pelvisH
+  const shoulderY = waistY + torsoH
+  const headY = height - headR
+
+  const x = product.w / 2 + 0.5
+  const z = Math.max(0.1, product.d / 2 - 0.04)
+
+  function Leg({ side }: { side: 1 | -1 }) {
+    return (
+      <group position={[side * stance, 0, 0]}>
+        <mesh position={[0, footH / 2, 0.06 * s]} castShadow receiveShadow>
+          <boxGeometry args={[0.08 * s, footH, 0.22 * s]} />
+          <LimbMat color={dark} rough={0.9} />
+        </mesh>
+        <mesh position={[0, (ankleY + kneeY) / 2, 0]} castShadow>
+          <capsuleGeometry args={[0.042 * s, shinH - 0.08 * s, 6, 14]} />
+          <LimbMat color={dark} />
+        </mesh>
+        <mesh position={[0, kneeY, 0]} castShadow>
+          <sphereGeometry args={[0.048 * s, 14, 12]} />
+          <LimbMat color={dark} />
+        </mesh>
+        <mesh position={[0, (kneeY + hipY) / 2, 0]} castShadow>
+          <capsuleGeometry args={[0.055 * s, thighH - 0.1 * s, 6, 14]} />
+          <LimbMat color={dark} />
+        </mesh>
+      </group>
+    )
+  }
+
+  function Arm({ side }: { side: 1 | -1 }) {
+    const upper = 0.3 * s
+    const lower = 0.27 * s
+    return (
+      <group
+        position={[side * (shoulderW / 2 - 0.01 * s), shoulderY - 0.02 * s, 0]}
+        rotation={[0.2, 0, side * 0.12]}
+      >
+        <mesh castShadow>
+          <sphereGeometry args={[0.05 * s, 14, 12]} />
+          <LimbMat color={body} />
+        </mesh>
+        <mesh position={[0, -upper / 2, 0]} castShadow>
+          <capsuleGeometry args={[0.035 * s, upper - 0.07 * s, 6, 14]} />
+          <LimbMat color={body} />
+        </mesh>
+        <group position={[0, -upper, 0]} rotation={[0.28, 0, 0]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.036 * s, 12, 10]} />
+            <LimbMat color={light} />
+          </mesh>
+          <mesh position={[0, -lower / 2, 0]} castShadow>
+            <capsuleGeometry args={[0.03 * s, lower - 0.06 * s, 6, 14]} />
+            <LimbMat color={light} />
+          </mesh>
+          <mesh position={[0, -lower - 0.01 * s, 0.015 * s]} castShadow>
+            <boxGeometry args={[0.055 * s, 0.022 * s, 0.12 * s]} />
+            <LimbMat color={light} rough={0.75} />
+          </mesh>
+        </group>
+      </group>
+    )
+  }
+
+  return (
+    <group position={[x, 0, z]} rotation={[0, Math.PI / 2, 0]}>
+      <Leg side={-1} />
+      <Leg side={1} />
+
+      <mesh position={[0, hipY + pelvisH * 0.4, 0]} castShadow>
+        <boxGeometry args={[hipW, pelvisH, 0.18 * s]} />
+        <LimbMat color={dark} />
+      </mesh>
+
+      <mesh position={[0, waistY + torsoH * 0.5, 0.01 * s]} castShadow>
+        <boxGeometry args={[0.34 * s, torsoH, 0.2 * s]} />
+        <LimbMat color={body} />
+      </mesh>
+      <mesh position={[0, shoulderY - 0.02 * s, 0]} castShadow>
+        <boxGeometry args={[shoulderW, 0.09 * s, 0.16 * s]} />
+        <LimbMat color={body} />
+      </mesh>
+      <mesh position={[-shoulderW / 2 + 0.02 * s, shoulderY - 0.01 * s, 0]} castShadow>
+        <sphereGeometry args={[0.055 * s, 14, 12]} />
+        <LimbMat color={body} />
+      </mesh>
+      <mesh position={[shoulderW / 2 - 0.02 * s, shoulderY - 0.01 * s, 0]} castShadow>
+        <sphereGeometry args={[0.055 * s, 14, 12]} />
+        <LimbMat color={body} />
+      </mesh>
+
+      <Arm side={-1} />
+      <Arm side={1} />
+
+      <mesh position={[0, shoulderY + neckH * 0.5, 0]} castShadow>
+        <cylinderGeometry args={[0.042 * s, 0.048 * s, neckH, 16]} />
+        <LimbMat color={light} rough={0.75} />
+      </mesh>
+
+      {/* Гладкая голова-манекен, без морды — ориентация на изделие */}
+      <group position={[0, headY, 0.01 * s]}>
+        <mesh castShadow>
+          <sphereGeometry args={[headR, 28, 20]} />
+          <LimbMat color={light} rough={0.7} />
+        </mesh>
+        {/* Лёгкий овал лица вперёд — читается взгляд без черт */}
+        <mesh position={[0, -0.01 * s, headR * 0.35]} castShadow>
+          <sphereGeometry args={[headR * 0.78, 20, 16]} />
+          <LimbMat color={light} rough={0.7} />
+        </mesh>
+      </group>
+
+      <Html position={[0, height + 0.1, 0]} center style={{ pointerEvents: 'none' }}>
+        <div className="dim">человек {Math.round(height * 100)} см</div>
+      </Html>
+    </group>
+  )
+}
+
+function NicheGaps({
+  opening,
+  product,
+  shiftZ,
+}: {
+  opening: Envelope
+  product: Span
+  shiftZ: number
+}) {
+  const roomW = opening.openingW / 1000
+  const roomH = opening.openingH / 1000
+  const roomD = opening.openingD / 1000
+  const side = (roomW - product.w) / 2
+  const top = roomH - product.h
+  const back = roomD - product.d
+  return (
+    <group>
+      {side > 0.001 && (
+        <>
+          <mesh position={[-roomW / 2 + side / 2, product.h / 2, shiftZ]}>
+            <boxGeometry args={[Math.max(side, 0.001), product.h, product.d]} />
+            <meshStandardMaterial color="#e28a45" transparent opacity={0.35} />
+          </mesh>
+          <mesh position={[roomW / 2 - side / 2, product.h / 2, shiftZ]}>
+            <boxGeometry args={[Math.max(side, 0.001), product.h, product.d]} />
+            <meshStandardMaterial color="#e28a45" transparent opacity={0.35} />
+          </mesh>
+        </>
+      )}
+      {back > 0.001 && (
+        <mesh position={[0, product.h / 2, -roomD / 2 + back / 2]}>
+          <boxGeometry args={[product.w, product.h, back]} />
+          <meshStandardMaterial color="#e28a45" transparent opacity={0.28} />
+        </mesh>
+      )}
+      <Html position={[0, roomH + 0.08, 0]} center style={{ pointerEvents: 'none' }}>
+        <div className="dim">
+          проём {opening.openingW} × {opening.openingH} × {opening.openingD} мм
+        </div>
+      </Html>
+      <Html position={[0, product.h + Math.min(0.12, Math.max(top, 0.04) / 2), shiftZ]} center style={{ pointerEvents: 'none' }}>
+        <div className="dim">
+          щель {Math.round(side * 1000)} мм/сторона · сверху {Math.round(top * 1000)} мм
+        </div>
+      </Html>
+    </group>
+  )
+}
+
 export function Stage({
   config,
   compiled,
   open,
   shot,
+  opening,
   onToggle,
 }: {
   config: SceneLook
   compiled: Compiled
   open: Record<string, boolean>
   shot: number
+  opening: Envelope | null
   onToggle: (key: string) => void
 }) {
+  const [showPerson, setShowPerson] = useState(false)
+  const roomPlan = defaultRoomPlan
+  const place = mainPlacement(roomPlan)
   const frame = {
     w: Math.max(compiled.span.w, compiled.dims.w),
     h: Math.max(compiled.span.h, compiled.dims.h),
     d: Math.max(compiled.span.d, compiled.dims.d),
   }
+  const body = compiled.dims
+  const roomSize = opening ? roomSizeForOpening(opening) : roomSizeForProduct(frame, roomPlan)
+  const shiftZ = opening ? (roomSize.d - body.d) / 2 : place.z
+  const view = {
+    w: Math.max(frame.w, roomSize.w),
+    h: Math.max(frame.h, roomSize.h),
+    d: Math.max(frame.d, roomSize.d),
+  }
+  const roomLabel = opening
+    ? `проём ${opening.openingH} мм`
+    : `потолок ${Math.round(roomSize.h * 100)} см`
 
   return (
-    <Canvas
-      key={shot}
-      shadows
-      dpr={[1, 1.75]}
-      camera={{ position: cameraFor(frame), fov: 34 }}
-    >
-      <color attach="background" args={['#e7e0d4']} />
-      <hemisphereLight args={['#fff6ea', '#cbb89f', 0.72]} />
-      <ambientLight intensity={0.22} />
-      <directionalLight
-        position={[4.5, 7.5, 5]}
-        intensity={1.85}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-near={0.4}
-        shadow-camera-far={28}
-        shadow-camera-left={-8}
-        shadow-camera-right={8}
-        shadow-camera-top={8}
-        shadow-camera-bottom={-8}
-        shadow-bias={-0.00035}
-      />
-      <directionalLight position={[-5, 4, -2]} intensity={0.38} color="#d5e2ff" />
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[40, 40]} />
-        <meshStandardMaterial color="#e3d5c4" roughness={0.96} />
-      </mesh>
-      <mesh position={[0, 1.75, -frame.d / 2 - 0.55]} receiveShadow>
-        <planeGeometry args={[Math.max(frame.w + 4, 9), 3.7]} />
-        <meshStandardMaterial color="#f6f2ea" roughness={1} />
-      </mesh>
-      <ContactShadows position={[0, 0.001, 0]} opacity={0.28} scale={14} blur={2.2} far={5} color="#6d5848" frames={1} />
-      {compiled.parts.map((part) => (
-        part.move
-          ? <Moving key={part.key} part={part} open={Boolean(open[part.key])} config={config} onToggle={onToggle} />
-          : <Still key={part.key} part={part} config={config} />
-      ))}
-      <Rulers dims={compiled.dims} />
-      <OrbitControls
-        makeDefault
-        target={[0, frame.h * 0.46, 0]}
-        maxPolarAngle={Math.PI / 2.04}
-        minDistance={0.9}
-        maxDistance={14}
-        enableDamping
-      />
-    </Canvas>
+    <div className="stage">
+      <Canvas
+        key={shot}
+        shadows
+        dpr={[1, 1.75]}
+        camera={{ position: cameraFor(view), fov: 34 }}
+      >
+        <color attach="background" args={['#e9edf2']} />
+        <hemisphereLight args={['#f5f8fb', '#d4c4b0', 0.85]} />
+        <ambientLight intensity={0.35} />
+        <directionalLight
+          position={[4.5, 7.5, 5]}
+          intensity={1.55}
+          castShadow
+          shadow-mapSize-width={2048}
+          shadow-mapSize-height={2048}
+          shadow-camera-near={0.4}
+          shadow-camera-far={28}
+          shadow-camera-left={-8}
+          shadow-camera-right={8}
+          shadow-camera-top={8}
+          shadow-camera-bottom={-8}
+          shadow-bias={-0.00035}
+        />
+        <directionalLight position={[-5, 4, -2]} intensity={0.38} color="#d5e2ff" />
+        <Room size={roomSize} />
+        <ContactShadows position={[0, 0.001, 0]} opacity={0.28} scale={14} blur={2.2} far={5} color="#6d5848" frames={1} />
+        {opening && <NicheGaps opening={opening} product={body} shiftZ={shiftZ} />}
+        <group position={[place.x, 0, shiftZ]} rotation-y={place.yaw}>
+          {compiled.parts.filter((part) => !part.ghost && !part.host).map((part) => (
+            part.move
+              ? (
+                <Moving
+                  key={part.key}
+                  part={part}
+                  extras={compiled.parts.filter((extra) => extra.host === part.key)}
+                  open={Boolean(open[part.key])}
+                  config={config}
+                  onToggle={onToggle}
+                />
+              )
+              : <Still key={part.key} part={part} config={config} />
+          ))}
+        </group>
+        {showPerson && <ScalePerson product={compiled.dims} height={PERSON_H} />}
+        <Rulers dims={compiled.dims} roomH={roomSize.h} roomLabel={roomLabel} />
+        <OrbitControls
+          makeDefault
+          target={[0, view.h * 0.46, 0]}
+          maxPolarAngle={Math.PI / 2.04}
+          minDistance={0.9}
+          maxDistance={14}
+          enableDamping
+        />
+      </Canvas>
+      {!opening && <div className="stage-note">Без привязки к месту</div>}
+      {opening?.outOfSquare && <div className="stage-note warn">Проём не прямой</div>}
+      <label className="person-toggle">
+        <input
+          type="checkbox"
+          checked={showPerson}
+          onChange={(event) => setShowPerson(event.target.checked)}
+        />
+        <span>Человек 175 см</span>
+      </label>
+    </div>
   )
 }

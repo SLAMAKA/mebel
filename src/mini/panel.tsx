@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import type { CutRow, MarkRow, SpecRow, TapeRow } from '../geometry'
+import type { NestResult } from '../cutlist/nest'
+import { NestMap } from '../cutlist/NestMap'
 import {
   boards,
   finishes,
@@ -18,6 +20,8 @@ import {
   Swatches,
   saveCuts,
 } from '../ui'
+import { envelopeOf, fitsOpening, limitsInOpening, type Survey } from '../survey/model'
+import { PlaceBar } from '../survey/step'
 import {
   applyMiniVariant,
   checkMiniRules,
@@ -81,7 +85,9 @@ export function MiniPanel({
   cuts,
   tapes,
   marks,
+  nest,
   note,
+  place,
   onChange,
   onOpenAll,
   onCloseAll,
@@ -92,7 +98,15 @@ export function MiniPanel({
   cuts: CutRow[]
   tapes: TapeRow[]
   marks: MarkRow[]
+  nest: NestResult
   note: string
+  place: {
+    survey: Survey | null
+    onEdit: () => void
+    onOrder: () => void
+    ordering: boolean
+    orderNote: string
+  }
   onChange: (config: MiniConfig) => void
   onOpenAll: () => void
   onCloseAll: () => void
@@ -101,6 +115,8 @@ export function MiniPanel({
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkMiniRules(config)
   const tip = (field: string) => tipForMini(rules, field)
+  const opening = place.survey ? envelopeOf(place.survey) : null
+  const lim = limitsInOpening(miniLimits, opening)
   const summary = miniSummary(config)
   const sizeSummary = `${config.width} × ${config.height} × ${config.depth} · ${config.sections} сек.`
 
@@ -109,7 +125,7 @@ export function MiniPanel({
   }
 
   function save() {
-    const blob = new Blob([JSON.stringify({ kind: 'mini', ...config }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ kind: 'mini', ...config, survey: place.survey }, null, 2)], { type: 'application/json' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = 'mini.json'
@@ -126,23 +142,38 @@ export function MiniPanel({
         </div>
       </div>
 
+      <PlaceBar
+        survey={place.survey}
+        onEdit={place.onEdit}
+        onOrder={place.onOrder}
+        ordering={place.ordering}
+        orderNote={place.orderNote}
+      />
+
       <p className="readout">
         {summary.variant} · {config.width} × {config.height} × {config.depth} мм · {summary.color}
       </p>
 
       <Fold title="Вариант" summary={`${summary.variant} · ${summary.mount}`}>
         <div className="variant-grid">
-          {miniVariants.map((item) => (
+          {miniVariants.map((item) => {
+            const ok = fitsOpening(item.patch, opening)
+            return (
             <button
               key={item.id}
               type="button"
               className={item.id === config.variant ? 'variant on' : 'variant'}
-              onClick={() => pickVariant(item.id)}
+              disabled={!ok}
+              title={ok ? undefined : 'Не входит в проём'}
+              onClick={() => {
+                if (ok) pickVariant(item.id)
+              }}
             >
               <strong>{item.name}</strong>
               <span>{item.hint}</span>
             </button>
-          ))}
+            )
+          })}
         </div>
       </Fold>
 
@@ -164,12 +195,12 @@ export function MiniPanel({
             ...(mount === 'wall' ? { base: 'plinth' as const } : {}),
           })}
         />
-        <Measure label="Ширина" value={config.width} {...miniLimits.width} tip={tip('width')} onChange={(width) => onChange({ ...config, width })} />
-        <Measure label="Высота" value={config.height} {...miniLimits.height} tip={tip('height')} onChange={(height) => onChange({ ...config, height })} />
-        <Measure label="Глубина" value={config.depth} {...miniLimits.depth} tip={tip('depth')} onChange={(depth) => onChange({ ...config, depth })} />
+        <Measure label="Ширина" value={config.width} {...lim.width} tip={tip('width')} onChange={(width) => onChange({ ...config, width })} />
+        <Measure label="Высота" value={config.height} {...lim.height} tip={tip('height')} onChange={(height) => onChange({ ...config, height })} />
+        <Measure label="Глубина" value={config.depth} {...lim.depth} tip={tip('depth')} onChange={(depth) => onChange({ ...config, depth })} />
         <Measure label="Секции" unit="шт" value={config.sections} {...miniLimits.sections} tip={tip('sections')} onChange={(sections) => onChange({ ...config, sections })} />
         <Measure
-          label={config.front === 'shoe' ? 'Лотки' : 'Полки'}
+          label="Полки"
           unit="шт"
           value={config.shelves}
           {...miniLimits.shelves}
@@ -259,12 +290,8 @@ export function MiniPanel({
         <Choice label="Плита корпуса" value={config.carcassBoard} options={boards} onChange={(carcassBoard) => onChange({ ...config, carcassBoard })} />
         <Choice label="Плита фасада" value={config.facadeBoard} options={boards} onChange={(facadeBoard) => onChange({ ...config, facadeBoard })} />
         <div className="row">
-          <button type="button" className="ghost" onClick={onOpenAll}>
-            {config.front === 'shoe' ? 'Выдвинуть' : 'Открыть'}
-          </button>
-          <button type="button" className="ghost" onClick={onCloseAll}>
-            {config.front === 'shoe' ? 'Задвинуть' : 'Закрыть'}
-          </button>
+          <button type="button" className="ghost" onClick={onOpenAll}>Открыть</button>
+          <button type="button" className="ghost" onClick={onCloseAll}>Закрыть</button>
         </div>
       </Fold>
 
@@ -292,6 +319,10 @@ export function MiniPanel({
           ))}
         </ul>
         <button type="button" className="ghost" onClick={() => saveCuts(cuts, tapes, marks)}>Скачать раскрой</button>
+      </Fold>
+
+      <Fold title="Раскрой" summary={`${nest.sheetCount} лист. · ${Math.round(nest.utilAvg * 100)}%`}>
+        <NestMap nest={nest} />
       </Fold>
     </aside>
   )

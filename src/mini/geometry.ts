@@ -18,10 +18,12 @@ import {
   mm,
   shell,
   support,
+  withNest,
   type Compiled,
   type Part,
   type SpecRow,
 } from '../geometry'
+import { envelopeOf, surveyLines, type Survey } from '../survey/model'
 import {
   miniFronts,
   miniLegs,
@@ -130,19 +132,17 @@ function buildMiniParts(config: MiniConfig): Part[] {
     })
   }
 
-  // Обычные полки только не для обувницы.
-  if (config.front !== 'shoe') {
-    for (let s = 0; s < sections; s++) {
-      const left = origin + s * (bay + T)
-      if (bay < 0.03) continue
-      for (let k = 0; k < config.shelves; k++) {
-        parts.push({
-          key: `mini-shelf-${s}-${k}`,
-          size: [bay - 0.002, T, d - 0.07],
-          pos: [left + bay / 2, y0 + ((k + 1) * innerH) / (config.shelves + 1), -0.015],
-          role: 'carcass',
-        })
-      }
+  // Полки.
+  for (let s = 0; s < sections; s++) {
+    const left = origin + s * (bay + T)
+    if (bay < 0.03) continue
+    for (let k = 0; k < config.shelves; k++) {
+      parts.push({
+        key: `mini-shelf-${s}-${k}`,
+        size: [bay - 0.002, T, d - 0.07],
+        pos: [left + bay / 2, y0 + ((k + 1) * innerH) / (config.shelves + 1), -0.015],
+        role: 'carcass',
+      })
     }
   }
 
@@ -150,29 +150,6 @@ function buildMiniParts(config: MiniConfig): Part[] {
 
   const gap = 0.003
   const doorZ = d / 2 + T / 2 + 0.001
-
-  if (config.front === 'shoe') {
-    // Выдвижные лотки с фасадом (механизм вроде ROLAND / Cora).
-    const trays = Math.max(2, config.shelves)
-    const faceH = (bodyH - gap * (trays + 1)) / trays
-    for (let s = 0; s < sections; s++) {
-      const faceW = (w - gap * (sections + 1)) / sections
-      const x = -w / 2 + gap + faceW / 2 + s * (faceW + gap)
-      for (let k = 0; k < trays; k++) {
-        const y = lift + gap + faceH / 2 + k * (faceH + gap)
-        parts.push({
-          key: `mini-shoe-${s}-${k}`,
-          size: [faceW, faceH, T],
-          pos: [x, y, doorZ],
-          role: 'facade',
-          move: 'drawer',
-          face: 'pz',
-          mirror: 'none',
-        })
-      }
-    }
-    return parts
-  }
 
   if (config.front === 'flip') {
     // Одна откидная дверь на всю ширину.
@@ -218,18 +195,13 @@ function makeMiniSpec(config: MiniConfig, parts: Part[]): SpecRow[] {
   const handle = findById(handles, config.handle)
   const finish = findById(finishes, config.finish)
 
-  rows.push({ name: 'Изделие', value: config.front === 'shoe' ? 'Обувница' : 'Мини-шкафчик' })
+  rows.push({ name: 'Изделие', value: 'Мини-шкафчик' })
   rows.push({ name: 'Вариант', value: variant.name })
   rows.push({ name: 'Крепление', value: findById(miniMounts, config.mount).name })
   rows.push({ name: 'Фасад', value: findById(miniFronts, config.front).name })
   rows.push({ name: 'Габарит', value: `${config.width} × ${config.height} × ${config.depth} мм` })
   rows.push({ name: 'Секции', value: `${config.sections}` })
-  if (config.front === 'shoe') {
-    rows.push({ name: 'Лотки', value: `${config.shelves} выдвижных` })
-    rows.push({ name: 'Механизм', value: 'Выдвижная обувница с фасадом' })
-  } else {
-    rows.push({ name: 'Полки', value: `${config.shelves} в секции` })
-  }
+  rows.push({ name: 'Полки', value: `${config.shelves} в секции` })
   rows.push({ name: 'Корпус', value: `${carcass.name} / ${carcassColor.name}` })
   rows.push({
     name: 'Фасад материал',
@@ -256,14 +228,7 @@ function makeMiniSpec(config: MiniConfig, parts: Part[]): SpecRow[] {
   const drawers = fronts.filter((part) => part.move === 'drawer')
   const hingeCount = swings.reduce((sum, part) => sum + hingeHeights(part.size[1]).length, 0)
   if (hingeCount) rows.push({ name: 'Петли', value: `${hingeCount} шт` })
-  if (drawers.length) {
-    rows.push({
-      name: 'Направляющие',
-      value: config.front === 'shoe'
-        ? `${drawers.length} пар полного выдвижения`
-        : `${drawers.length} пар`,
-    })
-  }
+  if (drawers.length) rows.push({ name: 'Направляющие', value: `${drawers.length} пар` })
 
   return rows
 }
@@ -289,21 +254,23 @@ function asShopConfig(config: MiniConfig): Config {
     depth: config.depth,
     sections: config.sections,
     shelves: config.shelves,
+    runner: 'ball',
   }
 }
 
-export function compileMini(input: MiniConfig): Compiled {
-  const config = sanitizeMini(input)
+export function compileMini(input: MiniConfig, survey: Survey | null = null): Compiled {
+  const opening = survey ? envelopeOf(survey) : null
+  const config = sanitizeMini(input, opening)
   const parts = buildMiniParts(config)
   const placed = layout(parts)
   const shop = asShopConfig(config)
-  return {
+  return withNest({
     parts: placed.parts,
     span: placed.span,
     dims: { w: mm(config.width), h: mm(config.height), d: mm(config.depth) },
-    spec: makeMiniSpec(config, placed.parts),
+    spec: [...surveyLines(survey, config), ...makeMiniSpec(config, placed.parts)],
     cuts: buildCuts(shop, placed.parts),
     tapes: buildTapes(shop, placed.parts),
     marks: buildMarks(shop, placed.parts),
-  }
+  })
 }

@@ -40,6 +40,7 @@ input { font: inherit; }
 
 .product-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 10px 16px;
   background: #1c1612;
@@ -119,6 +120,61 @@ input { font: inherit; }
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.survey-app {
+  display: grid;
+  grid-template-columns: min(400px, 100%) 1fr;
+  position: relative;
+}
+
+.survey-app.sidebar-shut {
+  grid-template-columns: 0 1fr;
+}
+
+.survey-app .view {
+  height: 100%;
+  min-width: 0;
+  z-index: 1;
+}
+
+.panel.sidebar {
+  position: relative;
+  z-index: 2;
+  width: auto;
+  min-width: 0;
+}
+
+.survey-app.sidebar-shut .panel.sidebar {
+  overflow: hidden;
+  padding: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sidebar-close {
+  margin-left: auto;
+}
+
+.sidebar-open {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #241c16;
+  color: #f4efe6;
+  cursor: pointer;
+}
+
+.survey-app .stage-note {
+  left: 16px;
+}
+
+.survey-app.sidebar-shut .stage-note {
+  left: 92px;
 }
 
 .logo {
@@ -569,6 +625,110 @@ h2 {
   touch-action: none;
 }
 
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.stage-note {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(36, 28, 22, 0.88);
+  color: #f4efe6;
+  font-size: 13px;
+}
+
+.stage-note.warn {
+  background: rgba(120, 52, 32, 0.92);
+}
+
+.survey-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.survey-card {
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 16px;
+  background: rgba(36, 28, 22, 0.92);
+  color: #f4efe6;
+}
+
+.survey-card h2 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #cbbba8;
+}
+
+.survey-card h2:first-child {
+  margin-top: 0;
+}
+
+.survey-card p {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.survey-lead {
+  margin: 12px 0 0;
+  color: #cbbba8;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.survey-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.survey-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.survey-field input {
+  width: 120px;
+  border: 1px solid #4a4036;
+  background: #312820;
+  color: #f4efe6;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.survey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.place-bar {
+  margin-top: 14px;
+}
+
+.place-bar .row {
+  margin-top: 8px;
+}
+
+.stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .view canvas { display: block; }
 
 .hud {
@@ -576,12 +736,38 @@ h2 {
   left: 16px;
   bottom: 16px;
   pointer-events: none;
+  z-index: 2;
 }
 
 .hud button {
   pointer-events: auto;
   margin-top: 8px;
   background: rgba(36, 28, 22, 0.88);
+}
+
+.person-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(36, 28, 22, 0.88);
+  border: 1px solid #4a4036;
+  color: #f4efe6;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.person-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #c4a36e;
+  cursor: pointer;
 }
 
 .dim {
@@ -594,6 +780,126 @@ h2 {
   pointer-events: none;
 }
 
+.dim-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.96);
+  border: 1px solid transparent;
+  color: #3c322b;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.dim-edit:focus-within {
+  border-color: #e28a45;
+  background: #fffaf3;
+}
+
+.dim-edit span {
+  font-size: 11px;
+  color: #6d5848;
+}
+
+.dim-edit input {
+  width: 72px;
+  border: 0;
+  background: transparent;
+  color: #241c16;
+  font-size: 14px;
+  text-align: right;
+  padding: 2px 0;
+}
+
+.dim-edit input:focus {
+  outline: none;
+}
+
+.nest-map {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nest-card {
+  border: 1px solid #3a3129;
+  border-radius: 10px;
+  padding: 8px;
+  background: #241c16;
+}
+
+.nest-card-head {
+  font-size: 12px;
+  color: #cbbba8;
+  margin-bottom: 6px;
+}
+
+.nest-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  background: #1a1511;
+}
+
+.nest-sheet {
+  fill: #e8e0d4;
+  stroke: #6d5848;
+  stroke-width: 1;
+}
+
+.nest-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: #a89888;
+  max-height: 90px;
+  overflow: auto;
+}
+
+.nest-list li {
+  padding: 2px 0;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.preset-grid button {
+  text-align: left;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #4a4036;
+  background: #312820;
+  color: #f4efe6;
+  cursor: pointer;
+}
+
+.preset-grid button:hover {
+  border-color: #c4a36e;
+}
+
+.preset-grid button:disabled,
+.variant:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.preset-grid em {
+  display: block;
+  font-style: normal;
+  color: #a89888;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 @media (max-width: 860px) {
   .app {
     grid-template-columns: 1fr;
@@ -602,4 +908,39 @@ h2 {
 
   .view { order: 1; }
   .panel { order: 2; height: auto; }
+
+  .survey-app,
+  .survey-app.sidebar-shut {
+    display: block;
+    grid-template-columns: none;
+  }
+
+  .survey-app .view {
+    order: 0;
+    height: 100%;
+  }
+
+  .survey-app .panel.sidebar,
+  .survey-app.sidebar-shut .panel.sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: min(400px, 100%);
+    height: 100%;
+    padding: 22px 20px 36px;
+    overflow: auto;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-105%);
+  }
+
+  .survey-app .panel.sidebar.open {
+    transform: translateX(0);
+  }
+
+  .survey-app .stage-note,
+  .survey-app.sidebar-shut .stage-note {
+    left: 16px;
+    top: 58px;
+  }
 }
