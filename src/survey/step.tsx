@@ -98,6 +98,30 @@ export function SurveyStep({
         <p className="survey-lead">
           Запас {GAP_SIDE_MM} мм на сторону · {GAP_TOP_MM} мм сверху · {GAP_BACK_MM} мм сзади.
         </p>
+        <div className="survey-skirt">
+          <p className="survey-kicker">Плинтус</p>
+          <label className="survey-field">
+            <span>Высота</span>
+            <input
+              inputMode="decimal"
+              aria-label="Высота плинтуса"
+              value={fields.skirtingHeight}
+              placeholder="0"
+              onChange={(event) => setField('skirtingHeight', event.target.value)}
+            />
+          </label>
+          <label className="survey-field">
+            <span>Ширина</span>
+            <input
+              inputMode="decimal"
+              aria-label="Ширина плинтуса"
+              value={fields.skirtingWidth}
+              placeholder="0"
+              onChange={(event) => setField('skirtingWidth', event.target.value)}
+            />
+          </label>
+          <p className="survey-lead">0 — плинтуса нет. Ширина это выступ от стены.</p>
+        </div>
         {opening && (
           <p className="readout">
             Проём {opening.openingW} × {opening.openingH} × {opening.openingD} мм

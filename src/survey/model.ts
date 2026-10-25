@@ -12,7 +12,8 @@ export type Survey = {
   heightLeft: number
   heightRight: number
   depth: number
-  skirting: number
+  skirtingHeight: number
+  skirtingWidth: number
   diagonalA: number | null
   diagonalB: number | null
 }
@@ -24,6 +25,8 @@ export type Envelope = {
   maxW: number
   maxH: number
   maxD: number
+  skirtingHeight: number
+  skirtingWidth: number
   outOfSquare: boolean
 }
 
@@ -42,7 +45,8 @@ export type SurveyFields = {
   heightLeft: string
   heightRight: string
   depth: string
-  skirting: string
+  skirtingHeight: string
+  skirtingWidth: string
   diagonalA: string
   diagonalB: string
 }
@@ -54,7 +58,8 @@ export const emptyFields: SurveyFields = {
   heightLeft: '',
   heightRight: '',
   depth: '',
-  skirting: '0',
+  skirtingHeight: '0',
+  skirtingWidth: '0',
   diagonalA: '',
   diagonalB: '',
 }
@@ -73,6 +78,8 @@ export function envelopeOf(survey: Survey): Envelope {
     maxW: openingW - GAP_SIDE_MM * 2,
     maxH: openingH - GAP_TOP_MM,
     maxD: openingD - GAP_BACK_MM,
+    skirtingHeight: survey.skirtingHeight,
+    skirtingWidth: survey.skirtingWidth,
     outOfSquare,
   }
 }
@@ -140,7 +147,9 @@ export function surveyLines(
     { name: 'Проём', value: `${opening.openingW} × ${opening.openingH} × ${opening.openingD} мм` },
     { name: 'Чистовой габарит', value: `${size.width} × ${size.height} × ${size.depth} мм` },
   ]
-  if (survey.skirting > 0) lines.push({ name: 'Плинтус', value: `${survey.skirting} мм` })
+  if (survey.skirtingHeight > 0 && survey.skirtingWidth > 0) {
+    lines.push({ name: 'Плинтус', value: `${survey.skirtingHeight} × ${survey.skirtingWidth} мм` })
+  }
   if (opening.outOfSquare) lines.push({ name: 'Угол', value: 'Проём не прямой' })
   return lines
 }
@@ -153,7 +162,8 @@ export function fieldsFromSurvey(survey: Survey): SurveyFields {
     heightLeft: String(survey.heightLeft),
     heightRight: String(survey.heightRight),
     depth: String(survey.depth),
-    skirting: String(survey.skirting),
+    skirtingHeight: String(survey.skirtingHeight),
+    skirtingWidth: String(survey.skirtingWidth),
     diagonalA: survey.diagonalA == null ? '' : String(survey.diagonalA),
     diagonalB: survey.diagonalB == null ? '' : String(survey.diagonalB),
   }
@@ -196,10 +206,13 @@ export function surveyFromFields(fields: SurveyFields): { survey: Survey } | { e
   }
   if (!inRange(depth, 100, 2000)) return { error: 'Глубина от 100 до 2000 мм.' }
 
-  const skirtText = fields.skirting.trim()
-  const skirting = skirtText ? Number(skirtText.replace(',', '.')) : 0
-  if (!Number.isFinite(skirting) || skirting < 0 || skirting > 300) {
-    return { error: 'Плинтус от 0 до 300 мм.' }
+  const skirtingHeight = readSkirt(fields.skirtingHeight, 300)
+  const skirtingWidth = readSkirt(fields.skirtingWidth, 100)
+  if (skirtingHeight == null || skirtingWidth == null) {
+    return { error: 'Плинтус: высота от 0 до 300 мм, ширина от 0 до 100 мм.' }
+  }
+  if ((skirtingHeight === 0) !== (skirtingWidth === 0)) {
+    return { error: 'Для плинтуса нужны и высота и ширина. 0 и 0 — плинтуса нет.' }
   }
 
   const diagonalA = readMm(fields.diagonalA)
@@ -215,7 +228,8 @@ export function surveyFromFields(fields: SurveyFields): { survey: Survey } | { e
       heightLeft,
       heightRight,
       depth,
-      skirting: Math.round(skirting),
+      skirtingHeight,
+      skirtingWidth,
       diagonalA,
       diagonalB,
     },
@@ -224,6 +238,14 @@ export function surveyFromFields(fields: SurveyFields): { survey: Survey } | { e
 
 function pos(value: unknown) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null
+  return Math.round(value)
+}
+
+function readSkirt(raw: string, max: number) {
+  const text = raw.trim().replace(',', '.')
+  if (!text) return 0
+  const value = Number(text)
+  if (!Number.isFinite(value) || value < 0 || value > max) return null
   return Math.round(value)
 }
 
@@ -250,8 +272,15 @@ export function readSurvey(value: unknown): Survey | null {
     heightRight == null ||
     depth == null
   ) return null
-  const skirting = raw.skirting == null ? 0 : nonNeg(raw.skirting)
-  if (skirting == null) return null
+  const legacy = raw.skirting == null ? null : nonNeg(raw.skirting)
+  if (raw.skirting != null && legacy == null) return null
+  const skirtingHeight = raw.skirtingHeight == null
+    ? (legacy ?? 0)
+    : nonNeg(raw.skirtingHeight)
+  const skirtingWidth = raw.skirtingWidth == null
+    ? (legacy && legacy > 0 ? 16 : 0)
+    : nonNeg(raw.skirtingWidth)
+  if (skirtingHeight == null || skirtingWidth == null) return null
   const diagonalA = raw.diagonalA == null ? null : pos(raw.diagonalA)
   const diagonalB = raw.diagonalB == null ? null : pos(raw.diagonalB)
   if (raw.diagonalA != null && diagonalA == null) return null
@@ -263,7 +292,8 @@ export function readSurvey(value: unknown): Survey | null {
     heightLeft,
     heightRight,
     depth,
-    skirting,
+    skirtingHeight,
+    skirtingWidth,
     diagonalA,
     diagonalB,
   }

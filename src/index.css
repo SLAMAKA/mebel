@@ -701,11 +701,36 @@ h2 {
 
 .survey-field input {
   width: 120px;
+  min-height: 40px;
   border: 1px solid #4a4036;
   background: #312820;
   color: #f4efe6;
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+.survey-field input:focus {
+  outline: none;
+  border-color: #e28a45;
+}
+
+.survey-skirt {
+  margin-top: 16px;
+}
+
+.survey-kicker {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f4efe6;
+}
+
+.survey-skirt .survey-field + .survey-field {
+  margin-top: 8px;
+}
+
+.survey-skirt .survey-lead {
+  margin-top: 8px;
 }
 
 .survey-actions {

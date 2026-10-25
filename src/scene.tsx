@@ -648,8 +648,38 @@ function Rulers({ dims, roomH, roomLabel }: { dims: Span; roomH: number; roomLab
   )
 }
 
+function RoomPlinth({ w, d, height, deep }: { w: number; d: number; height: number; deep: number }) {
+  const color = '#b8894a'
+  const span = Math.max(w, deep * 2 + 0.02)
+  const side = span / 2 - deep / 2
+  return (
+    <group>
+      <mesh position={[0, height / 2, -d / 2 + deep / 2]}>
+        <boxGeometry args={[Math.max(span - deep * 2, 0.02), height, deep]} />
+        <meshStandardMaterial color={color} roughness={0.62} />
+      </mesh>
+      <mesh position={[-side, height / 2, 0]}>
+        <boxGeometry args={[deep, height, d]} />
+        <meshStandardMaterial color={color} roughness={0.62} />
+      </mesh>
+      <mesh position={[side, height / 2, 0]}>
+        <boxGeometry args={[deep, height, d]} />
+        <meshStandardMaterial color={color} roughness={0.62} />
+      </mesh>
+    </group>
+  )
+}
+
 /** Пол и стены. Размер приходит снаружи: от изделия или от проёма. */
-function Room({ size }: { size: { w: number; d: number; h: number } }) {
+function Room({
+  size,
+  trim,
+  skirt,
+}: {
+  size: { w: number; d: number; h: number }
+  trim: boolean
+  skirt: { height: number; deep: number } | null
+}) {
   const roomW = size.w
   const roomD = size.d
   const roomH = size.h
@@ -657,7 +687,6 @@ function Room({ size }: { size: { w: number; d: number; h: number } }) {
   const wallT = 0.04
   const floorY = 0
   const ceilY = roomH
-  // Светлые стены, но чуть холоднее мебели — фасад не сливается.
   const backWall = '#e8ecf1'
   const sideWall = '#eef1f5'
   const floorColor = '#e6ddd0'
@@ -686,18 +715,23 @@ function Room({ size }: { size: { w: number; d: number; h: number } }) {
         <planeGeometry args={[roomD, roomH]} />
         <meshStandardMaterial color="#e9edf2" roughness={0.94} />
       </mesh>
-      <mesh position={[0, 0.04, backZ + wallT / 2]}>
-        <boxGeometry args={[roomW - 0.02, 0.08, wallT]} />
-        <meshStandardMaterial color={base} roughness={0.9} />
-      </mesh>
-      <mesh position={[-roomW / 2 + wallT / 2, 0.04, 0]}>
-        <boxGeometry args={[wallT, 0.08, roomD - 0.02]} />
-        <meshStandardMaterial color={base} roughness={0.9} />
-      </mesh>
-      <mesh position={[roomW / 2 - wallT / 2, 0.04, 0]}>
-        <boxGeometry args={[wallT, 0.08, roomD - 0.02]} />
-        <meshStandardMaterial color={base} roughness={0.9} />
-      </mesh>
+      {trim && (
+        <>
+          <mesh position={[0, 0.04, backZ + wallT / 2]}>
+            <boxGeometry args={[roomW - 0.02, 0.08, wallT]} />
+            <meshStandardMaterial color={base} roughness={0.9} />
+          </mesh>
+          <mesh position={[-roomW / 2 + wallT / 2, 0.04, 0]}>
+            <boxGeometry args={[wallT, 0.08, roomD - 0.02]} />
+            <meshStandardMaterial color={base} roughness={0.9} />
+          </mesh>
+          <mesh position={[roomW / 2 - wallT / 2, 0.04, 0]}>
+            <boxGeometry args={[wallT, 0.08, roomD - 0.02]} />
+            <meshStandardMaterial color={base} roughness={0.9} />
+          </mesh>
+        </>
+      )}
+      {skirt ? <RoomPlinth w={roomW} d={roomD} height={skirt.height} deep={skirt.deep} /> : null}
     </group>
   )
 }
@@ -941,6 +975,15 @@ export function Stage({
   const roomLabel = opening
     ? `проём ${opening.openingH} мм`
     : `потолок ${Math.round(roomSize.h * 100)} см`
+  const skirt = opening && opening.skirtingHeight > 0 && opening.skirtingWidth > 0
+    ? {
+        height: opening.skirtingHeight / 1000,
+        deep: opening.skirtingWidth / 1000,
+        sideGap: (opening.openingW - body.w * 1000) / 2,
+        backGap: opening.openingD - body.d * 1000,
+      }
+    : null
+  const skirtHits = skirt != null && (skirt.deep * 1000 > skirt.sideGap || skirt.deep * 1000 > skirt.backGap)
 
   return (
     <div className="stage">
@@ -968,7 +1011,7 @@ export function Stage({
           shadow-bias={-0.00035}
         />
         <directionalLight position={[-5, 4, -2]} intensity={0.38} color="#d5e2ff" />
-        <Room size={roomSize} />
+        <Room size={roomSize} trim={!opening} skirt={skirt} />
         <ContactShadows position={[0, 0.001, 0]} opacity={0.28} scale={14} blur={2.2} far={5} color="#6d5848" frames={1} />
         {opening && <NicheGaps opening={opening} product={body} shiftZ={shiftZ} />}
         <group position={[place.x, 0, shiftZ]} rotation-y={place.yaw}>
@@ -1000,6 +1043,11 @@ export function Stage({
       </Canvas>
       {!opening && <div className="stage-note">Без привязки к месту</div>}
       {opening?.outOfSquare && <div className="stage-note warn">Проём не прямой</div>}
+      {skirtHits && (
+        <div className={opening?.outOfSquare ? 'stage-note warn second' : 'stage-note warn'}>
+          Плинтус выпирает в изделие
+        </div>
+      )}
       <label className="person-toggle">
         <input
           type="checkbox"

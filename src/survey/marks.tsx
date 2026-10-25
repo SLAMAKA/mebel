@@ -440,6 +440,34 @@ function Niche({ w, h, d }: { w: number; h: number; d: number }) {
   )
 }
 
+function skirtMeters(raw: string) {
+  const text = raw.trim().replace(',', '.')
+  if (!text) return 0
+  const value = Number(text)
+  if (!Number.isFinite(value) || value <= 0) return 0
+  return value / 1000
+}
+
+function Plinth({ w, d, height, deep }: { w: number; d: number; height: number; deep: number }) {
+  const color = '#b8894a'
+  return (
+    <group>
+      <mesh position={[0, height / 2, -d / 2 + deep / 2]}>
+        <boxGeometry args={[Math.max(w - deep * 2, 0.05), height, deep]} />
+        <meshStandardMaterial color={color} roughness={0.62} />
+      </mesh>
+      <mesh position={[-w / 2 + deep / 2, height / 2, 0]}>
+        <boxGeometry args={[deep, height, d]} />
+        <meshStandardMaterial color={color} roughness={0.62} />
+      </mesh>
+      <mesh position={[w / 2 - deep / 2, height / 2, 0]}>
+        <boxGeometry args={[deep, height, d]} />
+        <meshStandardMaterial color={color} roughness={0.62} />
+      </mesh>
+    </group>
+  )
+}
+
 export function SurveyMarks({
   fields,
   onChange,
@@ -465,6 +493,8 @@ export function SurveyMarks({
   const floorEnd: Vec = [right, 0.03, front + 0.2]
   const ceil: Vec = [left, h + 0.12, front]
   const ceilEnd: Vec = [right, h + 0.12, front]
+  const skirtH = skirtMeters(fields.skirtingHeight)
+  const skirtW = skirtMeters(fields.skirtingWidth)
   const lowLeft: Vec = [left + 0.12, 0.16, front + 0.04]
   const highRight: Vec = [right - 0.12, h - 0.16, front + 0.04]
   const lowRight: Vec = [right - 0.12, 0.16, front + 0.04]
@@ -480,6 +510,7 @@ export function SurveyMarks({
         <ambientLight intensity={0.4} />
         <directionalLight position={[3, 6, 4]} intensity={1.2} />
         <Niche w={w} h={h} d={d} />
+        {skirtH > 0 && skirtW > 0 ? <Plinth w={w} d={d} height={skirtH} deep={skirtW} /> : null}
         {/* Первый Html теряет содержимое. Пустышка забирает этот сбой. */}
         <Html position={[0, 0, 0]} style={{ display: 'none' }}><span /></Html>
         <Witness from={[left, 0.02, front]} to={floor} />
@@ -544,16 +575,6 @@ export function SurveyMarks({
           label="глубина"
           value={fields.depth}
           onChange={set('depth')}
-          onTyping={setTyping}
-        />
-        <Mark
-          from={[left + 0.08, 0.03, -d / 2 + 0.05]}
-          to={[left + 0.38, 0.03, -d / 2 + 0.05]}
-          at={[left - 0.46, 0.34, front + 0.25]}
-          label="плинтус"
-          value={fields.skirting}
-          placeholder="0"
-          onChange={set('skirting')}
           onTyping={setTyping}
         />
         <Mark
