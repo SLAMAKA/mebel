@@ -15,15 +15,18 @@ import {
   layout,
   mm,
   shell,
+  withNest,
   type Compiled,
   type Part,
   type SpecRow,
 } from '../geometry'
 import { sanitizeShoe, shoeFaceHeightMm, shoeSections, type ShoeConfig } from './model'
+import { BOARD_T } from '../hardware/catalog'
+import { envelopeOf, surveyLines, type Survey } from '../survey/model'
 
 const LIFT = 0.05
-/** Толщина деталей ящика. */
-const BOARD = 0.016
+/** Толщина деталей ящика — общая с корпусной фурнитурой. */
+const BOARD = BOARD_T.ldsp16
 /** Люфт между фасадами снаружи. */
 const FACADE_GAP = 0.004
 /** Фасад не прижат к торцу корпуса. */
@@ -32,7 +35,7 @@ const FRONT_GAP = 0.002
  * Зазор между боковиной ящика и боковиной корпуса.
  * Сюда встаёт откидной механизм и упор.
  */
-const SIDE_CLEAR = 0.016
+const SIDE_CLEAR = BOARD_T.ldsp16
 /** Люфт ящика сверху и снизу в проёме. */
 const SLOT_PLAY = 0.005
 /** Ящик не доходит до задней стенки. */
@@ -354,20 +357,22 @@ function asShopConfig(config: ShoeConfig): Config {
     depth: config.depth,
     sections: 1,
     shelves: 0,
+    runner: 'ball',
   }
 }
 
-export function compileShoe(input: ShoeConfig): Compiled {
-  const config = sanitizeShoe(input)
+export function compileShoe(input: ShoeConfig, survey: Survey | null = null): Compiled {
+  const opening = survey ? envelopeOf(survey) : null
+  const config = sanitizeShoe(input, opening)
   const placed = layout(buildShoeParts(config))
   const shop = asShopConfig(config)
-  return {
+  return withNest({
     parts: placed.parts,
     span: placed.span,
     dims: { w: mm(config.width), h: mm(config.height), d: mm(config.depth) },
-    spec: makeShoeSpec(config, placed.parts),
+    spec: [...surveyLines(survey, config), ...makeShoeSpec(config, placed.parts)],
     cuts: buildCuts(shop, placed.parts),
     tapes: buildTapes(shop, placed.parts),
     marks: buildMarks(shop, placed.parts),
-  }
+  })
 }

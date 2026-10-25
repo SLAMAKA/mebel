@@ -54,7 +54,7 @@ export function findRunner(id: RunnerId) {
 /** Ближайшая стандартная длина ≤ доступной глубине. */
 export function runnerLengthMm(innerDepthMm: number, backGapMm: number) {
   const max = Math.max(200, Math.floor(innerDepthMm - backGapMm))
-  let pick = runnerLengthsMm[0]
+  let pick: number = runnerLengthsMm[0]
   for (const len of runnerLengthsMm) {
     if (len <= max) pick = len
   }

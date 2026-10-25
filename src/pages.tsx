@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react'
 import { compile } from './geometry'
-import { defaultsByKind, readConfig, sanitize, type Config } from './model'
+import { defaultsByKind, limitsFor, readConfig, sanitize, type Config } from './model'
+import { useOrder } from './order/client'
 import { Panel } from './panel'
 import { Stage } from './scene'
+import { fitBox, openingBlock, readSurvey, envelopeOf } from './survey/model'
+import { SurveyStep, useOpening } from './survey/step'
 
 const meta = {
   wardrobe: {
@@ -22,11 +25,14 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [shot, setShot] = useState(0)
   const [note, setNote] = useState('')
-  const compiled = useMemo(() => compile(config), [config])
+  const place = useOpening()
+  const order = useOrder()
+  const limits = limitsFor(kind)
+  const compiled = useMemo(() => compile(config, place.survey), [config, place.survey])
   const copy = meta[kind]
 
   function apply(next: Config) {
-    setConfig(sanitize({ ...next, kind }))
+    setConfig(sanitize({ ...next, kind }, place.opening))
     setNote('')
   }
 
@@ -40,7 +46,8 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
 
   function load(file: File) {
     file.text().then((text) => {
-      const next = readConfig(JSON.parse(text))
+      const parsed = JSON.parse(text) as { survey?: unknown }
+      const next = readConfig(parsed)
       if (!next) {
         setNote('Файл не похож на эскиз')
         return
@@ -53,11 +60,47 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         setNote('Это эскиз тумбы. Откройте страницу Тумба.')
         return
       }
+      const saved = readSurvey(parsed.survey)
       setOpen({})
-      setConfig(sanitize({ ...next, kind }))
       setShot((value) => value + 1)
+      if (!saved) {
+        place.skip()
+        setConfig(sanitize({ ...next, kind }))
+        setNote('')
+        return
+      }
+      const opening = envelopeOf(saved)
+      const block = openingBlock(opening, limits)
+      if (block) {
+        setNote(block)
+        return
+      }
+      place.accept(saved)
+      setConfig(sanitize({ ...next, kind, ...fitBox(next, limits, opening) }, opening))
       setNote('')
     }).catch(() => setNote('Не удалось прочитать файл'))
+  }
+
+  if (place.phase === 'survey') {
+    return (
+      <SurveyStep
+        mode={kind === 'wardrobe' ? 'niche' : 'free'}
+        title={copy.title}
+        fields={place.fields}
+        limits={limits}
+        onChange={place.setFields}
+        onSkip={() => {
+          place.skip()
+          setShot((value) => value + 1)
+        }}
+        onDone={(survey) => {
+          const opening = place.accept(survey)
+          setConfig((prev) => sanitize({ ...prev, kind, ...fitBox(prev, limits, opening) }, opening))
+          setOpen({})
+          setShot((value) => value + 1)
+        }}
+      />
+    )
   }
 
   return (
@@ -70,7 +113,15 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         cuts={compiled.cuts}
         tapes={compiled.tapes}
         marks={compiled.marks}
+        nest={compiled.nest}
         note={note}
+        place={{
+          survey: place.survey,
+          onEdit: place.edit,
+          onOrder: () => order.order({ kind, survey: place.survey, config }),
+          ordering: order.ordering,
+          orderNote: order.orderNote,
+        }}
         onChange={apply}
         onOpenAll={() => setFronts(true)}
         onCloseAll={() => setFronts(false)}
@@ -82,6 +133,7 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
           compiled={compiled}
           open={open}
           shot={shot}
+          opening={place.opening}
           onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
         />
         <div className="hud">

@@ -12,6 +12,13 @@ import {
   type ColorId,
   type SceneLook,
 } from './model'
+import {
+  defaultRoomPlan,
+  mainPlacement,
+  roomSizeForOpening,
+  roomSizeForProduct,
+} from './room/plan'
+import type { Envelope } from './survey/model'
 
 type Mat = {
   color: string
@@ -583,7 +590,7 @@ function Still({ part, config }: { part: Part; config: SceneLook }) {
   )
 }
 
-function Rulers({ dims, roomH }: { dims: Span; roomH: number }) {
+function Rulers({ dims, roomH, roomLabel }: { dims: Span; roomH: number; roomLabel: string }) {
   const y = 0.02
   const z = dims.d / 2 + 0.38
   const x = dims.w / 2 + 0.24
@@ -635,17 +642,17 @@ function Rulers({ dims, roomH }: { dims: Span; roomH: number }) {
         <meshBasicMaterial color="#8a7364" />
       </mesh>
       <Html position={[roomX, roomH * 0.72, dims.d / 2 + 0.02]} center style={{ pointerEvents: 'none' }}>
-        <div className="dim">потолок {Math.round(roomH * 100)} см</div>
+        <div className="dim">{roomLabel}</div>
       </Html>
     </group>
   )
 }
 
-/** Комната вокруг изделия: пол, стены, потолок 270 см. */
-function Room({ product, roomH }: { product: Span; roomH: number }) {
-  const pad = 1.2
-  const roomW = Math.max(product.w + pad * 2, 3.6)
-  const roomD = Math.max(product.d + pad * 1.6, 3.2)
+/** Пол и стены. Размер приходит снаружи: от изделия или от проёма. */
+function Room({ size }: { size: { w: number; d: number; h: number } }) {
+  const roomW = size.w
+  const roomD = size.d
+  const roomH = size.h
   const backZ = -roomD / 2
   const wallT = 0.04
   const floorY = 0
@@ -702,7 +709,6 @@ function cameraFor(dims: Span): [number, number, number] {
   return [dist * 0.38, dims.h * 0.48, dist * 0.92]
 }
 
-const ROOM_H = 2.7
 const PERSON_H = 1.75
 
 function LimbMat({ color, rough = 0.82 }: { color: string; rough?: number }) {
@@ -852,25 +858,89 @@ function ScalePerson({ product, height }: { product: Span; height: number }) {
   )
 }
 
+function NicheGaps({
+  opening,
+  product,
+  shiftZ,
+}: {
+  opening: Envelope
+  product: Span
+  shiftZ: number
+}) {
+  const roomW = opening.openingW / 1000
+  const roomH = opening.openingH / 1000
+  const roomD = opening.openingD / 1000
+  const side = (roomW - product.w) / 2
+  const top = roomH - product.h
+  const back = roomD - product.d
+  return (
+    <group>
+      {side > 0.001 && (
+        <>
+          <mesh position={[-roomW / 2 + side / 2, product.h / 2, shiftZ]}>
+            <boxGeometry args={[Math.max(side, 0.001), product.h, product.d]} />
+            <meshStandardMaterial color="#e28a45" transparent opacity={0.35} />
+          </mesh>
+          <mesh position={[roomW / 2 - side / 2, product.h / 2, shiftZ]}>
+            <boxGeometry args={[Math.max(side, 0.001), product.h, product.d]} />
+            <meshStandardMaterial color="#e28a45" transparent opacity={0.35} />
+          </mesh>
+        </>
+      )}
+      {back > 0.001 && (
+        <mesh position={[0, product.h / 2, -roomD / 2 + back / 2]}>
+          <boxGeometry args={[product.w, product.h, back]} />
+          <meshStandardMaterial color="#e28a45" transparent opacity={0.28} />
+        </mesh>
+      )}
+      <Html position={[0, roomH + 0.08, 0]} center style={{ pointerEvents: 'none' }}>
+        <div className="dim">
+          проём {opening.openingW} × {opening.openingH} × {opening.openingD} мм
+        </div>
+      </Html>
+      <Html position={[0, product.h + Math.min(0.12, Math.max(top, 0.04) / 2), shiftZ]} center style={{ pointerEvents: 'none' }}>
+        <div className="dim">
+          щель {Math.round(side * 1000)} мм/сторона · сверху {Math.round(top * 1000)} мм
+        </div>
+      </Html>
+    </group>
+  )
+}
+
 export function Stage({
   config,
   compiled,
   open,
   shot,
+  opening,
   onToggle,
 }: {
   config: SceneLook
   compiled: Compiled
   open: Record<string, boolean>
   shot: number
+  opening: Envelope | null
   onToggle: (key: string) => void
 }) {
   const [showPerson, setShowPerson] = useState(false)
+  const roomPlan = defaultRoomPlan
+  const place = mainPlacement(roomPlan)
   const frame = {
     w: Math.max(compiled.span.w, compiled.dims.w),
     h: Math.max(compiled.span.h, compiled.dims.h),
     d: Math.max(compiled.span.d, compiled.dims.d),
   }
+  const body = compiled.dims
+  const roomSize = opening ? roomSizeForOpening(opening) : roomSizeForProduct(frame, roomPlan)
+  const shiftZ = opening ? (roomSize.d - body.d) / 2 : place.z
+  const view = {
+    w: Math.max(frame.w, roomSize.w),
+    h: Math.max(frame.h, roomSize.h),
+    d: Math.max(frame.d, roomSize.d),
+  }
+  const roomLabel = opening
+    ? `проём ${opening.openingH} мм`
+    : `потолок ${Math.round(roomSize.h * 100)} см`
 
   return (
     <div className="stage">
@@ -878,7 +948,7 @@ export function Stage({
         key={shot}
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: cameraFor(frame), fov: 34 }}
+        camera={{ position: cameraFor(view), fov: 34 }}
       >
         <color attach="background" args={['#e9edf2']} />
         <hemisphereLight args={['#f5f8fb', '#d4c4b0', 0.85]} />
@@ -898,33 +968,38 @@ export function Stage({
           shadow-bias={-0.00035}
         />
         <directionalLight position={[-5, 4, -2]} intensity={0.38} color="#d5e2ff" />
-        <Room product={frame} roomH={ROOM_H} />
+        <Room size={roomSize} />
         <ContactShadows position={[0, 0.001, 0]} opacity={0.28} scale={14} blur={2.2} far={5} color="#6d5848" frames={1} />
-        {compiled.parts.filter((part) => !part.ghost && !part.host).map((part) => (
-          part.move
-            ? (
-              <Moving
-                key={part.key}
-                part={part}
-                extras={compiled.parts.filter((extra) => extra.host === part.key)}
-                open={Boolean(open[part.key])}
-                config={config}
-                onToggle={onToggle}
-              />
-            )
-            : <Still key={part.key} part={part} config={config} />
-        ))}
+        {opening && <NicheGaps opening={opening} product={body} shiftZ={shiftZ} />}
+        <group position={[place.x, 0, shiftZ]} rotation-y={place.yaw}>
+          {compiled.parts.filter((part) => !part.ghost && !part.host).map((part) => (
+            part.move
+              ? (
+                <Moving
+                  key={part.key}
+                  part={part}
+                  extras={compiled.parts.filter((extra) => extra.host === part.key)}
+                  open={Boolean(open[part.key])}
+                  config={config}
+                  onToggle={onToggle}
+                />
+              )
+              : <Still key={part.key} part={part} config={config} />
+          ))}
+        </group>
         {showPerson && <ScalePerson product={compiled.dims} height={PERSON_H} />}
-        <Rulers dims={compiled.dims} roomH={ROOM_H} />
+        <Rulers dims={compiled.dims} roomH={roomSize.h} roomLabel={roomLabel} />
         <OrbitControls
           makeDefault
-          target={[0, frame.h * 0.46, 0]}
+          target={[0, view.h * 0.46, 0]}
           maxPolarAngle={Math.PI / 2.04}
           minDistance={0.9}
           maxDistance={14}
           enableDamping
         />
       </Canvas>
+      {!opening && <div className="stage-note">Без привязки к месту</div>}
+      {opening?.outOfSquare && <div className="stage-note warn">Проём не прямой</div>}
       <label className="person-toggle">
         <input
           type="checkbox"

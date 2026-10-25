@@ -16,6 +16,7 @@ import {
   type SceneLook,
   clamp,
 } from '../model'
+import { limitsInOpening, type Envelope } from '../survey/model'
 
 /** Крепление мини-шкафчика. */
 export type MiniMountId = 'wall' | 'floor'
@@ -232,15 +233,16 @@ export function applyMiniVariant(config: MiniConfig, id: MiniVariantId): MiniCon
   return sanitizeMini({ ...config, ...variant.patch, variant: id })
 }
 
-export function sanitizeMini(input: MiniConfig): MiniConfig {
+export function sanitizeMini(input: MiniConfig, opening: Envelope | null = null): MiniConfig {
+  const lim = limitsInOpening(miniLimits, opening)
   const next: MiniConfig = { ...defaultMiniConfig, ...input }
   next.variant = variantIds.has(next.variant) ? next.variant : 'hang60'
   next.mount = mountIds.has(next.mount) ? next.mount : 'wall'
   next.front = frontIds.has(next.front) ? next.front : 'swing'
   next.leg = legIds.has(next.leg) ? next.leg : 'square'
-  next.width = clamp(next.width, miniLimits.width.min, miniLimits.width.max)
-  next.height = clamp(next.height, miniLimits.height.min, miniLimits.height.max)
-  next.depth = clamp(next.depth, miniLimits.depth.min, miniLimits.depth.max)
+  next.width = clamp(next.width, Math.min(lim.width.min, lim.width.max), lim.width.max)
+  next.height = clamp(next.height, Math.min(lim.height.min, lim.height.max), lim.height.max)
+  next.depth = clamp(next.depth, Math.min(lim.depth.min, lim.depth.max), lim.depth.max)
   next.sections = clampInt(next.sections, miniLimits.sections.min, miniLimits.sections.max)
   next.shelves = clampInt(next.shelves, miniLimits.shelves.min, miniLimits.shelves.max)
   if (next.base !== 'plinth' && next.base !== 'legs') next.base = 'plinth'

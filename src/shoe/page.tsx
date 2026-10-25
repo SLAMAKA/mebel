@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useOrder } from '../order/client'
 import { Stage } from '../scene'
+import { envelopeOf, fitBox, openingBlock, readSurvey } from '../survey/model'
+import { SurveyStep, useOpening } from '../survey/step'
 import { compileShoe } from './geometry'
 import { ShoePanel } from './panel'
 import {
@@ -8,6 +11,7 @@ import {
   sanitizeShoe,
   shoeAsSceneLook,
   shoeFaceHeightMm,
+  shoeLimits,
   type ShoeConfig,
 } from './model'
 
@@ -16,7 +20,9 @@ export function ShoePage() {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [shot, setShot] = useState(0)
   const [note, setNote] = useState('')
-  const compiled = useMemo(() => compileShoe(config), [config])
+  const place = useOpening()
+  const order = useOrder()
+  const compiled = useMemo(() => compileShoe(config, place.survey), [config, place.survey])
   const look = shoeAsSceneLook(config)
 
   useEffect(() => {
@@ -25,7 +31,7 @@ export function ShoePage() {
   }, [config.width, config.height, config.depth, config.drawers])
 
   function apply(next: ShoeConfig) {
-    setConfig(sanitizeShoe(next))
+    setConfig(sanitizeShoe(next, place.opening))
     setNote('')
   }
 
@@ -39,16 +45,53 @@ export function ShoePage() {
 
   function load(file: File) {
     file.text().then((text) => {
-      const next = readShoeConfig(JSON.parse(text))
+      const parsed = JSON.parse(text) as { survey?: unknown }
+      const next = readShoeConfig(parsed)
       if (!next) {
         setNote('Файл не похож на обувницу')
         return
       }
+      const saved = readSurvey(parsed.survey)
       setOpen({})
-      setConfig(next)
       setShot((value) => value + 1)
+      if (!saved) {
+        place.skip()
+        setConfig(next)
+        setNote('')
+        return
+      }
+      const opening = envelopeOf(saved)
+      const block = openingBlock(opening, shoeLimits)
+      if (block) {
+        setNote(block)
+        return
+      }
+      place.accept(saved)
+      setConfig(sanitizeShoe({ ...next, ...fitBox(next, shoeLimits, opening) }, opening))
       setNote('')
     }).catch(() => setNote('Не удалось прочитать файл'))
+  }
+
+  if (place.phase === 'survey') {
+    return (
+      <SurveyStep
+        mode="free"
+        title="Обувница"
+        fields={place.fields}
+        limits={shoeLimits}
+        onChange={place.setFields}
+        onSkip={() => {
+          place.skip()
+          setShot((value) => value + 1)
+        }}
+        onDone={(survey) => {
+          const opening = place.accept(survey)
+          setConfig((prev) => sanitizeShoe({ ...prev, ...fitBox(prev, shoeLimits, opening) }, opening))
+          setOpen({})
+          setShot((value) => value + 1)
+        }}
+      />
+    )
   }
 
   return (
@@ -59,7 +102,15 @@ export function ShoePage() {
         cuts={compiled.cuts}
         tapes={compiled.tapes}
         marks={compiled.marks}
+        nest={compiled.nest}
         note={note}
+        place={{
+          survey: place.survey,
+          onEdit: place.edit,
+          onOrder: () => order.order({ kind: 'shoe', survey: place.survey, config }),
+          ordering: order.ordering,
+          orderNote: order.orderNote,
+        }}
         onChange={apply}
         onOpenAll={() => setFronts(true)}
         onCloseAll={() => setFronts(false)}
@@ -71,6 +122,7 @@ export function ShoePage() {
           compiled={compiled}
           open={open}
           shot={shot}
+          opening={place.opening}
           onToggle={(key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
         />
         <div className="hud">

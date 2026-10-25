@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import type { CutRow, MarkRow, SpecRow, TapeRow } from './geometry'
+import type { NestResult } from './cutlist/nest'
+import { NestMap } from './cutlist/NestMap'
 import {
   boards,
   checkRules,
@@ -17,6 +19,9 @@ import {
   type Config,
 } from './model'
 import { drawerBoxFromOpening, findRunner } from './drawer/sizing'
+import { presetSizeHint } from './catalog/presets'
+import { envelopeOf, fitsOpening, limitsInOpening, type Survey } from './survey/model'
+import { PlaceBar } from './survey/step'
 import {
   BaseChoice,
   Choice,
@@ -39,7 +44,9 @@ export function Panel({
   cuts,
   tapes,
   marks,
+  nest,
   note,
+  place,
   onChange,
   onOpenAll,
   onCloseAll,
@@ -52,7 +59,15 @@ export function Panel({
   cuts: CutRow[]
   tapes: TapeRow[]
   marks: MarkRow[]
+  nest: NestResult
   note: string
+  place: {
+    survey: Survey | null
+    onEdit: () => void
+    onOrder: () => void
+    ordering: boolean
+    orderNote: string
+  }
   onChange: (config: Config) => void
   onOpenAll: () => void
   onCloseAll: () => void
@@ -61,7 +76,8 @@ export function Panel({
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkRules(config)
   const tip = (field: string) => tipFor(rules, field)
-  const lim = limitsFor(config.kind)
+  const opening = place.survey ? envelopeOf(place.survey) : null
+  const lim = limitsInOpening(limitsFor(config.kind), opening)
   const presets = presetsFor(config.kind)
   const isPedestal = config.kind === 'pedestal'
   const doorSummary = isPedestal
@@ -79,7 +95,7 @@ export function Panel({
     : `${config.width} × ${config.height} × ${config.depth} · ${config.sections} сек.`
 
   function save() {
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ ...config, survey: place.survey }, null, 2)], { type: 'application/json' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = `${config.kind}.json`
@@ -115,6 +131,14 @@ export function Panel({
         </div>
       </div>
 
+      <PlaceBar
+        survey={place.survey}
+        onEdit={place.onEdit}
+        onOrder={place.onOrder}
+        ordering={place.ordering}
+        orderNote={place.orderNote}
+      />
+
       <p className="readout">
         {config.width} × {config.height} × {config.depth} мм ·{' '}
         {isPedestal ? `${config.drawers} ящ.` : `${config.sections} сек.`} ·{' '}
@@ -122,17 +146,24 @@ export function Panel({
       </p>
 
       <Fold title="Размеры" summary={sizeSummary}>
-        <div className="chips">
-          {presets.map((item) => (
+        <div className="preset-grid">
+          {presets.map((item) => {
+            const ok = fitsOpening(item.patch, opening)
+            return (
             <button
               key={item.name}
               type="button"
-              className="chip"
-              onClick={() => onChange({ ...config, ...item.patch })}
+              disabled={!ok}
+              title={ok ? undefined : 'Не входит в проём'}
+              onClick={() => {
+                if (ok) onChange({ ...config, ...item.patch })
+              }}
             >
               {item.name}
+              <em>{presetSizeHint(item.patch)}</em>
             </button>
-          ))}
+            )
+          })}
         </div>
         {rules.length > 0 && (
           <ul className="rules">
@@ -286,6 +317,10 @@ export function Panel({
           ))}
         </ul>
         <button type="button" className="ghost" onClick={() => saveCuts(cuts, tapes, marks)}>Скачать раскрой</button>
+      </Fold>
+
+      <Fold title="Раскрой" summary={`${nest.sheetCount} лист. · ${Math.round(nest.utilAvg * 100)}%`}>
+        <NestMap nest={nest} />
       </Fold>
     </aside>
   )

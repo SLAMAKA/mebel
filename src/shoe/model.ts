@@ -15,6 +15,7 @@ import {
   type SceneLook,
   clamp,
 } from '../model'
+import { limitsInOpening, type Envelope } from '../survey/model'
 
 /** Обувница вроде ОБ-5: откидные ящики по две секции. */
 export type ShoeConfig = {
@@ -97,13 +98,14 @@ function clampInt(value: number, min: number, max: number) {
   return Math.round(clamp(value, min, max))
 }
 
-export function sanitizeShoe(input: ShoeConfig): ShoeConfig {
+export function sanitizeShoe(input: ShoeConfig, opening: Envelope | null = null): ShoeConfig {
+  const lim = limitsInOpening(shoeLimits, opening)
   const next: ShoeConfig = { ...defaultShoeConfig, ...input }
   next.drawers = clampInt(next.drawers, shoeLimits.drawers.min, shoeLimits.drawers.max)
   next.rows = clampInt(next.rows, shoeLimits.rows.min, shoeLimits.rows.max)
-  next.width = clamp(next.width, shoeLimits.width.min, shoeLimits.width.max)
-  next.depth = clamp(next.depth, shoeLimits.depth.min, shoeLimits.depth.max)
-  next.height = clamp(next.height, shoeLimits.height.min, shoeLimits.height.max)
+  next.width = clamp(next.width, Math.min(lim.width.min, lim.width.max), lim.width.max)
+  next.depth = clamp(next.depth, Math.min(lim.depth.min, lim.depth.max), lim.depth.max)
+  next.height = clamp(next.height, Math.min(lim.height.min, lim.height.max), lim.height.max)
   if (next.handlePos !== 'top' && next.handlePos !== 'middle' && next.handlePos !== 'bottom') next.handlePos = 'top'
   if (next.handleSide !== 'open' && next.handleSide !== 'hinge') next.handleSide = 'open'
   if (!handleIds.has(next.handle)) next.handle = 'knob'

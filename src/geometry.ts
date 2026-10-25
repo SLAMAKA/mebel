@@ -16,7 +16,19 @@ import {
   type HandleSideId,
   type MirrorId,
 } from './model'
-import { drawerBoxFromOpening, findRunner, type RunnerId } from './drawer/sizing'
+import { nestCuts, nestSpecRows, type NestResult } from './cutlist/nest'
+import {
+  BOARD_T,
+  findHandleHardware,
+  findHinge,
+  runnerSpecLine,
+} from './hardware/catalog'
+import {
+  drawerBoxFromOpening,
+  findRunner,
+  type RunnerId,
+} from './drawer/sizing'
+import { envelopeOf, surveyLines, type Survey } from './survey/model'
 
 export type Role = 'carcass' | 'facade' | 'back' | 'plinth' | 'metal'
 export type Move = 'swing-left' | 'swing-right' | 'slide-left' | 'slide-right' | 'drawer' | 'tilt'
@@ -78,9 +90,12 @@ export type Compiled = {
   cuts: CutRow[]
   tapes: TapeRow[]
   marks: MarkRow[]
+  nest: NestResult
 }
 
-export const PANEL_T = 0.018
+export const PANEL_T = BOARD_T.ldsp18
+const DRAWER_BOARD = BOARD_T.ldsp16
+const BACK_T = BOARD_T.hdf8
 
 export function mm(value: number) {
   return value / 1000
@@ -91,13 +106,12 @@ export function shell(prefix: string, x: number, yBottom: number, z: number, w: 
   const y = yBottom + h / 2
   const innerW = Math.max(0.02, w - 2 * T)
   const innerH = Math.max(0.02, h - 2 * T)
-  const backT = 0.008
   return [
     { key: `${prefix}-l`, size: [T, h, d], pos: [x - w / 2 + T / 2, y, z], role: 'carcass' },
     { key: `${prefix}-r`, size: [T, h, d], pos: [x + w / 2 - T / 2, y, z], role: 'carcass' },
     { key: `${prefix}-t`, size: [innerW, T, d], pos: [x, yBottom + h - T / 2, z], role: 'carcass' },
     { key: `${prefix}-b`, size: [innerW, T, d], pos: [x, yBottom + T / 2, z], role: 'carcass' },
-    { key: `${prefix}-back`, size: [innerW, innerH, backT], pos: [x, y, z - d / 2 + backT / 2 + 0.006], role: 'back' },
+    { key: `${prefix}-back`, size: [innerW, innerH, BACK_T], pos: [x, y, z - d / 2 + BACK_T / 2 + 0.006], role: 'back' },
   ]
 }
 
@@ -212,7 +226,7 @@ function cabinetBody(config: Config, withDoors: boolean): Part[] {
 
 function pedestal(config: Config): Part[] {
   const T = PANEL_T
-  const BOARD = 0.016
+  const BOARD = DRAWER_BOARD
   const w = mm(config.width)
   const h = mm(config.height)
   const d = mm(config.depth)
@@ -404,11 +418,14 @@ export function handlePlan(
 
   const y = alongHeight(h, pos)
 
+  const hw = findHandleHardware(handle)
+  const holeSpan = (hw.holeSpanMm ?? 128) / 1000
+
   // Ящик и откидной фасад: ручка по центру.
   if (part.move === 'drawer' || part.move === 'tilt') {
     if (handle === 'knob') return { holes: [{ x: w * 0.5, y }] }
     if (handle === 'edge') return { holes: [{ x: w * 0.5, y: h * 0.92 }] }
-    const span = Math.min(0.28, Math.max(0.12, w * 0.35))
+    const span = Math.min(holeSpan, Math.max(0.08, w * 0.9))
     return {
       holes: [
         { x: w * 0.5 - span / 2, y },
@@ -433,7 +450,7 @@ export function handlePlan(
   }
 
   if (handle === 'bow') {
-    const span = Math.min(0.18, Math.max(0.1, h * 0.1))
+    const span = Math.min(holeSpan, Math.max(0.08, h * 0.2))
     return {
       holes: [
         { x: edgeX, y: y - span / 2 },
@@ -443,7 +460,7 @@ export function handlePlan(
   }
 
   if (handle === 'rail') {
-    const span = Math.min(0.64, Math.max(0.28, w * 0.55))
+    const span = Math.min(holeSpan, Math.max(0.12, w * 0.4))
     const cx = onLeft ? w * 0.38 : w * 0.62
     return {
       holes: [
@@ -453,7 +470,7 @@ export function handlePlan(
     }
   }
 
-  const span = Math.min(0.22, Math.max(0.1, h * 0.12))
+  const span = Math.min(holeSpan, Math.max(0.08, h * 0.2))
   return {
     holes: [
       { x: edgeX, y: y - span / 2 },
@@ -493,7 +510,7 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
     )
     rows.push({
       name: 'Направляющие',
-      value: `${runner.name} ${Math.round(sample.runnerLen * 1000)} мм · ход ${Math.round(sample.travel * 1000)} мм`,
+      value: runnerSpecLine(config.runner, openingD * 1000),
     })
     rows.push({
       name: 'Короб ящика',
@@ -509,22 +526,30 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
     rows.push({ name: 'Зеркало', value: findById(mirrorModes, config.mirror).name })
   }
   rows.push({ name: 'Опора', value: base.name })
+  const handleHw = findHandleHardware(config.handle)
+  const spanNote = handleHw.holeSpanMm ? ` · межцентр ${handleHw.holeSpanMm} мм` : ''
   rows.push({
     name: 'Ручка',
     value: handle.id === 'none'
       ? 'Без ручки'
       : config.kind === 'pedestal'
-        ? `${handle.name} / ${finish.name} / ${posName}`
-        : `${handle.name} / ${finish.name} / ${posName} / ${sideName}`,
+        ? `${handle.name} / ${finish.name} / ${posName}${spanNote}`
+        : `${handle.name} / ${finish.name} / ${posName} / ${sideName}${spanNote}`,
   })
-  rows.push({ name: 'Задняя стенка', value: 'ХДФ 8 мм накладная' })
+  rows.push({ name: 'Задняя стенка', value: `ХДФ ${BOARD_T.hdf8 * 1000} мм накладная` })
 
   const fronts = parts.filter((part) => part.move)
   const swings = fronts.filter((part) => part.move === 'swing-left' || part.move === 'swing-right')
   const drawers = fronts.filter((part) => part.move === 'drawer')
   rows.push({ name: 'Фасады', value: `${fronts.length} шт` })
   const hingeCount = swings.reduce((sum, part) => sum + hingeHeights(part.size[1]).length, 0)
-  if (hingeCount) rows.push({ name: 'Петли', value: `${hingeCount} шт скрытые` })
+  if (hingeCount) {
+    const hinge = findHinge('clip')
+    rows.push({
+      name: 'Петли',
+      value: `${hingeCount} шт · ${hinge.name} · чашка ${hinge.cupMm}`,
+    })
+  }
   if (drawers.length && config.kind !== 'pedestal') {
     rows.push({ name: 'Направляющие', value: `${drawers.length} пар` })
   }
@@ -545,6 +570,15 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
     rows.push({ name: tape.name, value: `нужно ${tape.need} м / заказать ${tape.order} м` })
   }
   return rows
+}
+
+export function withNest(compiled: Omit<Compiled, 'nest'>): Compiled {
+  const nest = nestCuts(compiled.cuts)
+  return {
+    ...compiled,
+    nest,
+    spec: [...compiled.spec, ...nestSpecRows(nest)],
+  }
 }
 
 export function partLabel(part: Part) {
@@ -682,9 +716,10 @@ export function buildMarks(config: Config, parts: Part[]): MarkRow[] {
     }
     if (part.move === 'swing-left' || part.move === 'swing-right') {
       const side = part.move === 'swing-left' ? 'слева' : 'справа'
+      const hinge = findHinge('clip')
       rows.push({
         title: partLabel(part),
-        text: `петли ${side} / чашка 35 / от края 22 мм / высоты ${hingeHeights(part.size[1]).map((y) => Math.round((part.size[1] / 2 + y) * 1000)).join(' · ')} мм`,
+        text: `петли ${side} / ${hinge.name} · чашка ${hinge.cupMm} / от края ${hinge.edgeMm} мм / высоты ${hingeHeights(part.size[1]).map((y) => Math.round((part.size[1] / 2 + y) * 1000)).join(' · ')} мм`,
       })
     }
     if (config.handle !== 'none') {
@@ -700,17 +735,18 @@ export function buildMarks(config: Config, parts: Part[]): MarkRow[] {
   return rows
 }
 
-export function compile(input: Config): Compiled {
-  const config = sanitize(input)
+export function compile(input: Config, survey: Survey | null = null): Compiled {
+  const opening = survey ? envelopeOf(survey) : null
+  const config = sanitize(input, opening)
   const parts = buildParts(config)
   const placed = layout(parts)
-  return {
+  return withNest({
     parts: placed.parts,
     span: placed.span,
     dims: { w: mm(config.width), h: mm(config.height), d: mm(config.depth) },
-    spec: makeSpec(config, placed.parts),
+    spec: [...surveyLines(survey, config), ...makeSpec(config, placed.parts)],
     cuts: buildCuts(config, placed.parts),
     tapes: buildTapes(config, placed.parts),
     marks: buildMarks(config, placed.parts),
-  }
+  })
 }

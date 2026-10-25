@@ -18,10 +18,12 @@ import {
   mm,
   shell,
   support,
+  withNest,
   type Compiled,
   type Part,
   type SpecRow,
 } from '../geometry'
+import { envelopeOf, surveyLines, type Survey } from '../survey/model'
 import {
   miniFronts,
   miniLegs,
@@ -252,21 +254,23 @@ function asShopConfig(config: MiniConfig): Config {
     depth: config.depth,
     sections: config.sections,
     shelves: config.shelves,
+    runner: 'ball',
   }
 }
 
-export function compileMini(input: MiniConfig): Compiled {
-  const config = sanitizeMini(input)
+export function compileMini(input: MiniConfig, survey: Survey | null = null): Compiled {
+  const opening = survey ? envelopeOf(survey) : null
+  const config = sanitizeMini(input, opening)
   const parts = buildMiniParts(config)
   const placed = layout(parts)
   const shop = asShopConfig(config)
-  return {
+  return withNest({
     parts: placed.parts,
     span: placed.span,
     dims: { w: mm(config.width), h: mm(config.height), d: mm(config.depth) },
-    spec: makeMiniSpec(config, placed.parts),
+    spec: [...surveyLines(survey, config), ...makeMiniSpec(config, placed.parts)],
     cuts: buildCuts(shop, placed.parts),
     tapes: buildTapes(shop, placed.parts),
     marks: buildMarks(shop, placed.parts),
-  }
+  })
 }
