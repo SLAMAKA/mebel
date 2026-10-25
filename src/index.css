@@ -783,8 +783,7 @@ h2 {
 .dim-edit {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px 3px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: rgba(246, 241, 234, 0.96);
   border: 1px solid transparent;
@@ -793,23 +792,19 @@ h2 {
   pointer-events: auto;
 }
 
+.dim-edit.hot,
 .dim-edit:focus-within {
   border-color: #e28a45;
   background: #fffaf3;
 }
 
-.dim-edit span {
-  font-size: 11px;
-  color: #6d5848;
-}
-
 .dim-edit input {
-  width: 72px;
+  width: 52px;
   border: 0;
   background: transparent;
   color: #241c16;
   font-size: 14px;
-  text-align: right;
+  text-align: center;
   padding: 2px 0;
 }
 
