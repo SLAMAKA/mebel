@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import {
   findById,
   finishes,
@@ -13,16 +13,16 @@ import {
   type MirrorId,
 } from '../model'
 import {
+  assignmentFor,
   frameInsetMm,
   hasFrame,
-  patternSummary,
+  patternName,
   type PatternAssign,
 } from '../pattern/catalog'
 import { PatternPane } from '../pattern/section'
-import { partLabel, type Part } from '../geometry'
+import { type Part } from '../geometry'
 import {
   Choice,
-  Fold,
   FrameIcon,
   HandleIcon,
   HandlePlace,
@@ -42,18 +42,14 @@ export type FacadeLook = {
 
 type Feature = 'handle' | 'frame' | 'pattern'
 
-const features: { id: Feature; name: string }[] = [
-  { id: 'handle', name: 'Ручка' },
-  { id: 'frame', name: 'Рамка' },
-  { id: 'pattern', name: 'Узор' },
+const features: { id: Feature; empty: string }[] = [
+  { id: 'handle', empty: 'Ручка' },
+  { id: 'frame', empty: 'Рамка' },
+  { id: 'pattern', empty: 'Узор' },
 ]
 
 function facadeParts(parts: Part[]) {
   return parts.filter((part) => part.role === 'facade' && !part.ghost)
-}
-
-function facadeTitle(part: Part, index: number) {
-  return `${partLabel(part)} ${index + 1}`
 }
 
 function clampPatterns(patterns: PatternAssign[], frame: FrameId) {
@@ -62,44 +58,53 @@ function clampPatterns(patterns: PatternAssign[], frame: FrameId) {
   return patterns.map((row) => ({ ...row, margin: Math.max(row.margin, inset) }))
 }
 
-export function FacadeSection({
-  title,
+function featureLabel(id: Feature, look: FacadeLook, partKey: string) {
+  if (id === 'handle') {
+    return look.handle === 'none' ? 'Ручка' : findById(handles, look.handle).name
+  }
+  if (id === 'frame') {
+    return look.frame === 'plain' ? 'Рамка' : findById(frameModes, look.frame).name
+  }
+  const row = assignmentFor(look.patterns, partKey)
+  return row.id === 'none' ? 'Узор' : patternName(row.id)
+}
+
+function isEmpty(id: Feature, look: FacadeLook, partKey: string) {
+  if (id === 'handle') return look.handle === 'none'
+  if (id === 'frame') return look.frame === 'plain'
+  return assignmentFor(look.patterns, partKey).id === 'none'
+}
+
+export function FacadeBar({
   parts,
   pickedKey,
-  onPick,
   look,
   onLook,
-  header,
-  locked,
-  showMirror,
   handleLayout,
+  showMirror,
+  open,
+  onToggle,
 }: {
-  title: string
   parts: Part[]
-  pickedKey: string | null
-  onPick: (key: string) => void
+  pickedKey: string
   look: FacadeLook
   onLook: (next: FacadeLook) => void
-  header?: ReactNode
-  locked?: boolean
-  showMirror?: boolean
   handleLayout: 'place' | 'height'
+  showMirror?: boolean
+  open?: boolean
+  onToggle?: () => void
 }) {
-  const [feature, setFeature] = useState<Feature>('handle')
-  const facades = facadeParts(parts ?? [])
-  const picked = facades.find((part) => part.key === pickedKey) ?? facades[0] ?? null
-  const summary = [
-    findById(handles, look.handle).name,
-    findById(frameModes, look.frame).name,
-    patternSummary(look.patterns),
-  ].join(' · ')
+  const [feature, setFeature] = useState<Feature | null>(null)
+  const facades = facadeParts(parts)
+  const picked = facades.find((part) => part.key === pickedKey)
+  if (!picked) return null
 
   function patch(next: Partial<FacadeLook>) {
     onLook({ ...look, ...next })
   }
 
   function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const index = features.findIndex((item) => item.id === feature)
+    const index = Math.max(0, features.findIndex((item) => item.id === feature))
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault()
       setFeature(features[(index + 1) % features.length].id)
@@ -108,145 +113,137 @@ export function FacadeSection({
       event.preventDefault()
       setFeature(features[(index - 1 + features.length) % features.length].id)
     }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setFeature(null)
+    }
   }
 
   return (
-    <Fold title={title} summary={summary} wake={pickedKey}>
-      {header}
-      {locked ? (
-        <p className="door-place-hint">Без фасада. Сначала выбери двери.</p>
-      ) : !facades.length ? (
-        <p className="tip warn">Нет фасада. Включите двери.</p>
-      ) : (
-        <>
-          {facades.length > 1 && (
-            <div className="choice">
-              <span className="choice-label">Щит</span>
-              <div className="chips">
-                {facades.map((part, index) => (
-                  <button
-                    key={part.key}
-                    type="button"
-                    className={part.key === picked?.key ? 'chip on' : 'chip'}
-                    onClick={() => onPick(part.key)}
-                  >
-                    {facadeTitle(part, index)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <p className="door-place-hint">Ткни фасад на сцене. Потом ручку рамку или узор.</p>
-          <div
-            className="face-tabs"
-            role="tablist"
-            aria-label="Фичи фасада"
-            onKeyDown={onTabKey}
+    <div className="face-bar">
+      <div className="face-bar-row">
+        <div
+          className="face-bar-tabs"
+          role="tablist"
+          aria-label="Фасад"
+          onKeyDown={onTabKey}
+        >
+          {features.map((item) => {
+            const on = item.id === feature
+            const empty = isEmpty(item.id, look, picked.key)
+            const label = featureLabel(item.id, look, picked.key)
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                id={`face-tab-${item.id}`}
+                aria-selected={on}
+                aria-controls={on ? `face-pane-${item.id}` : undefined}
+                aria-label={empty ? item.empty : label}
+                tabIndex={on || feature == null ? 0 : -1}
+                className={on ? 'on' : empty ? 'mute' : undefined}
+                onClick={() => setFeature(on ? null : item.id)}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        {picked.move && onToggle && (
+          <button
+            type="button"
+            className={open ? 'face-move on' : 'face-move'}
+            aria-pressed={Boolean(open)}
+            onClick={onToggle}
           >
-            {features.map((item) => {
-              const on = item.id === feature
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  id={`face-tab-${item.id}`}
-                  aria-selected={on}
-                  aria-controls={`face-pane-${item.id}`}
-                  tabIndex={on ? 0 : -1}
-                  className={on ? 'chip on' : 'chip'}
-                  onClick={() => setFeature(item.id)}
-                >
-                  {item.name}
-                </button>
-              )
+            {open ? 'Закрыть' : 'Открыть'}
+          </button>
+        )}
+      </div>
+
+      {feature === 'handle' && (
+        <div className="face-bar-pane" role="tabpanel" id="face-pane-handle" aria-labelledby="face-tab-handle">
+          <IconPick
+            label="Ручка"
+            value={look.handle}
+            options={handles}
+            render={(id) => <HandleIcon id={id} side={look.handleSide} />}
+            onChange={(handle: HandleId) => patch({
+              handle,
+              handlePos: handle === 'cut' ? 'top' : look.handlePos,
             })}
-          </div>
-
-          {feature === 'handle' && (
-            <div className="face-pane" role="tabpanel" id="face-pane-handle" aria-labelledby="face-tab-handle">
-              <IconPick
-                label="Ручка"
-                value={look.handle}
-                options={handles}
-                render={(id) => <HandleIcon id={id} side={look.handleSide} />}
-                onChange={(handle: HandleId) => patch({
-                  handle,
-                  handlePos: handle === 'cut' ? 'top' : look.handlePos,
-                })}
-              />
-              {look.handle !== 'none' && handleLayout === 'place' && (
-                <HandlePlace
-                  pos={look.handlePos}
-                  side={look.handleSide}
-                  onChange={(next) => patch(next)}
-                />
-              )}
-              {look.handle !== 'none' && handleLayout === 'height' && (
-                <Choice
-                  label="Высота ручки"
-                  value={look.handlePos}
-                  options={[
-                    { id: 'top', name: 'Верх' },
-                    { id: 'middle', name: 'Середина' },
-                    { id: 'bottom', name: 'Низ' },
-                  ]}
-                  onChange={(handlePos: HandlePosId) => patch({ handlePos })}
-                />
-              )}
-              {look.handle !== 'none' && look.handle !== 'cut' && (
-                <Choice
-                  label="Покрытие"
-                  value={look.finish}
-                  options={finishes}
-                  onChange={(finish: FinishId) => patch({ finish })}
-                />
-              )}
-            </div>
+          />
+          {look.handle !== 'none' && handleLayout === 'place' && (
+            <HandlePlace
+              pos={look.handlePos}
+              side={look.handleSide}
+              onChange={(next) => patch(next)}
+            />
           )}
-
-          {feature === 'frame' && (
-            <div className="face-pane" role="tabpanel" id="face-pane-frame" aria-labelledby="face-tab-frame">
-              <IconPick
-                label="Рамка"
-                value={look.frame}
-                options={frameModes}
-                render={(id) => <FrameIcon id={id} />}
-                onChange={(frame: FrameId) => patch({
-                  frame,
-                  patterns: clampPatterns(look.patterns, frame),
-                })}
-              />
-              {showMirror && (
-                <IconPick
-                  label="Зеркало"
-                  value={look.mirror}
-                  options={mirrorModes}
-                  render={(id) => <MirrorIcon id={id} />}
-                  onChange={(mirror: MirrorId) => patch({ mirror })}
-                />
-              )}
-              <p className="door-place-hint">
-                {hasFrame(look.frame)
-                  ? `Узор пойдёт внутрь рамки · поле ${frameInsetMm(look.frame)} мм`
-                  : 'Гладкий щит. Узор на всю лицевую.'}
-              </p>
-            </div>
+          {look.handle !== 'none' && handleLayout === 'height' && (
+            <Choice
+              label="Высота ручки"
+              value={look.handlePos}
+              options={[
+                { id: 'top', name: 'Верх' },
+                { id: 'middle', name: 'Середина' },
+                { id: 'bottom', name: 'Низ' },
+              ]}
+              onChange={(handlePos: HandlePosId) => patch({ handlePos })}
+            />
           )}
-
-          {feature === 'pattern' && (
-            <div className="face-pane" role="tabpanel" id="face-pane-pattern" aria-labelledby="face-tab-pattern">
-              <PatternPane
-                parts={parts}
-                patterns={look.patterns}
-                pickedKey={picked?.key ?? null}
-                frame={look.frame}
-                onChange={(patterns) => patch({ patterns })}
-              />
-            </div>
+          {look.handle !== 'none' && look.handle !== 'cut' && (
+            <Choice
+              label="Покрытие"
+              value={look.finish}
+              options={finishes}
+              onChange={(finish: FinishId) => patch({ finish })}
+            />
           )}
-        </>
+        </div>
       )}
-    </Fold>
+
+      {feature === 'frame' && (
+        <div className="face-bar-pane" role="tabpanel" id="face-pane-frame" aria-labelledby="face-tab-frame">
+          <IconPick
+            label="Рамка"
+            value={look.frame}
+            options={frameModes}
+            render={(id) => <FrameIcon id={id} />}
+            onChange={(frame: FrameId) => patch({
+              frame,
+              patterns: clampPatterns(look.patterns, frame),
+            })}
+          />
+          {showMirror && (
+            <IconPick
+              label="Зеркало"
+              value={look.mirror ?? 'none'}
+              options={mirrorModes}
+              render={(id) => <MirrorIcon id={id} />}
+              onChange={(mirror: MirrorId) => patch({ mirror })}
+            />
+          )}
+          <p className="door-place-hint">
+            {hasFrame(look.frame)
+              ? `Узор пойдёт внутрь рамки · поле ${frameInsetMm(look.frame)} мм`
+              : 'Гладкий щит. Узор на всю лицевую.'}
+          </p>
+        </div>
+      )}
+
+      {feature === 'pattern' && (
+        <div className="face-bar-pane" role="tabpanel" id="face-pane-pattern" aria-labelledby="face-tab-pattern">
+          <PatternPane
+            parts={parts}
+            patterns={look.patterns}
+            pickedKey={picked.key}
+            frame={look.frame}
+            onChange={(patterns) => patch({ patterns })}
+          />
+        </div>
+      )}
+    </div>
   )
 }

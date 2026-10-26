@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useFloatSide } from '../ui'
 import { CutlistPage } from '../cutlist/page'
+import { FacadeBar } from '../facade/section'
 import { Stage } from '../scene'
 import { envelopeOf, fitBox, openingBlock, readSurvey } from '../survey/model'
 import { SurveyStep, useOpening } from '../survey/step'
@@ -27,7 +28,7 @@ export function MiniPage() {
   const compiled = useMemo(() => compileMini(config, place.survey), [config, place.survey])
   const look = miniAsSceneLook(config)
   const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
-  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : (facades[0]?.key ?? null)
+  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : null
 
   function apply(next: MiniConfig) {
     setConfig(sanitizeMini(next, place.opening))
@@ -35,8 +36,8 @@ export function MiniPage() {
   }
 
   function pickPart(key: string) {
-    setPickedKey(key)
-    side.show()
+    setPickedKey((prev) => (prev === key ? null : key))
+    side.hide()
   }
 
   function setFronts(flag: boolean) {
@@ -128,9 +129,6 @@ export function MiniPage() {
         onCloseAll={() => setFronts(false)}
         onLoad={load}
         onCutlist={() => setCutOpen(true)}
-        parts={compiled.parts}
-        pickedKey={pick}
-        onPick={pickPart}
         onHide={side.hide}
       />
       {!side.open && (
@@ -146,6 +144,24 @@ export function MiniPage() {
           pickedKey={pick}
           onPickPart={pickPart}
         />
+        {pick && (
+          <FacadeBar
+            parts={compiled.parts}
+            pickedKey={pick}
+            look={{
+              frame: config.frame,
+              handle: config.handle,
+              handlePos: config.handlePos,
+              handleSide: config.handleSide,
+              finish: config.finish,
+              patterns: config.patterns,
+            }}
+            onLook={(look) => apply({ ...config, ...look })}
+            handleLayout="place"
+            open={Boolean(open[pick])}
+            onToggle={() => setOpen((prev) => ({ ...prev, [pick]: !prev[pick] }))}
+          />
+        )}
         <div className="hud">
           <p>
             {config.mount === 'wall'

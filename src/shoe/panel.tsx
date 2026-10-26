@@ -1,6 +1,5 @@
 import { useRef } from 'react'
-import type { Part, SpecRow } from '../geometry'
-import { FacadeSection } from '../facade/section'
+import type { SpecRow } from '../geometry'
 import type { NestResult } from '../cutlist/nest'
 import { CutlistEntry } from '../cutlist/page'
 import { boards } from '../model'
@@ -35,9 +34,6 @@ export function ShoePanel({
   onCloseAll,
   onLoad,
   onCutlist,
-  parts,
-  pickedKey,
-  onPick,
   onHide,
 }: {
   config: ShoeConfig
@@ -53,9 +49,6 @@ export function ShoePanel({
   onCloseAll: () => void
   onLoad: (file: File) => void
   onCutlist: () => void
-  parts: Part[]
-  pickedKey: string | null
-  onPick: (key: string) => void
   onHide: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -158,23 +151,6 @@ export function ShoePanel({
         <Swatches label="Фасад" value={config.facadeColor} onChange={(facadeColor) => onChange({ ...config, facadeColor })} />
         <Swatches label="Корпус" value={config.carcassColor} onChange={(carcassColor) => onChange({ ...config, carcassColor })} />
       </Fold>
-
-      <FacadeSection
-        title="Фасад"
-        parts={parts}
-        pickedKey={pickedKey}
-        onPick={onPick}
-        look={{
-          frame: config.frame,
-          handle: config.handle,
-          handlePos: config.handlePos,
-          handleSide: config.handleSide,
-          finish: config.finish,
-          patterns: config.patterns,
-        }}
-        onLook={(look) => onChange({ ...config, ...look })}
-        handleLayout="place"
-      />
 
       <Fold title="Ещё">
         <Choice label="Плита корпуса" value={config.carcassBoard} options={boards} onChange={(carcassBoard) => onChange({ ...config, carcassBoard })} />

@@ -539,6 +539,95 @@ h2 {
   margin-top: 4px;
 }
 
+.face-bar {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.overlay:not(.sidebar-shut) .face-bar {
+  left: 392px;
+}
+
+.face-bar-row,
+.face-bar-pane {
+  pointer-events: auto;
+}
+
+.face-bar-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(36, 28, 22, 0.92);
+  box-shadow: 0 12px 28px rgba(28, 18, 12, 0.38);
+}
+
+.face-bar-tabs {
+  display: contents;
+}
+
+.face-bar-row button {
+  min-height: 44px;
+  min-width: 88px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #f4efe6;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.face-bar-row button.mute {
+  color: #cbb9a4;
+  font-weight: 500;
+}
+
+.face-bar-row button.on {
+  background: #e28a45;
+  color: #241c16;
+}
+
+.face-bar-row .face-move {
+  box-shadow: inset 1px 0 0 #4a4036;
+}
+
+.face-bar-row button:focus-visible {
+  outline: 2px solid #e28a45;
+  outline-offset: 2px;
+}
+
+.face-bar-pane {
+  margin-top: 8px;
+  width: min(420px, 100%);
+  max-height: min(560px, calc(100vh - 180px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 8px 14px 16px;
+  border-radius: 20px;
+  background: #241c16;
+  color: #f4efe6;
+  box-shadow: 0 20px 48px rgba(28, 18, 12, 0.42);
+}
+
+.face-bar-pane .choice:first-child,
+.face-bar-pane .door-place-hint:first-child {
+  margin-top: 8px;
+}
+
+.view:has(.face-bar) .stage-note {
+  top: 72px;
+}
+
 .choice > span,
 .measure-top span {
   display: block;
@@ -1322,6 +1411,16 @@ h2 {
     left: auto;
     right: 12px;
     top: 58px;
+  }
+
+  .overlay:not(.sidebar-shut) .face-bar,
+  .overlay.sidebar-shut .face-bar {
+    left: 12px;
+    right: 12px;
+  }
+
+  .view:has(.face-bar) .stage-note {
+    top: 72px;
   }
 
   .cut-app {

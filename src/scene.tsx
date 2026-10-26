@@ -552,12 +552,10 @@ function Moving({
   return (
     <group position={[pivotX, pivotY, pivotZ]}>
       <group ref={anim}>
-        <group position={[0, meshY, meshZ]}>
-        <mesh
-          position={[meshX, 0, 0]}
-          castShadow
-          receiveShadow
+        <group
+          position={[0, meshY, meshZ]}
           onPointerOver={(event) => {
+            if (part.role !== 'facade') return
             event.stopPropagation()
             setHot(true)
             document.body.style.cursor = 'pointer'
@@ -567,9 +565,15 @@ function Moving({
             document.body.style.cursor = 'auto'
           }}
           onClick={(event) => {
+            if (part.role !== 'facade') return
             event.stopPropagation()
-            if (part.role === 'facade') onPick(part.key)
+            onPick(part.key)
           }}
+        >
+        <mesh
+          position={[meshX, 0, 0]}
+          castShadow
+          receiveShadow
         >
           <boxGeometry args={part.size} />
           <Material mat={mat} hot={hot} picked={picked} />
@@ -649,6 +653,13 @@ function Still({
         onClick={facade ? (event) => {
           event.stopPropagation()
           onPick(part.key)
+        } : undefined}
+        onPointerOver={facade ? (event) => {
+          event.stopPropagation()
+          document.body.style.cursor = 'pointer'
+        } : undefined}
+        onPointerOut={facade ? () => {
+          document.body.style.cursor = 'auto'
         } : undefined}
       >
         {cyl ? (

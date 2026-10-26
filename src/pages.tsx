@@ -3,6 +3,7 @@ import { useFloatSide } from './ui'
 import { compile } from './geometry'
 import { defaultsByKind, limitsFor, readConfig, sanitize, type Config } from './model'
 import { CutlistPage } from './cutlist/page'
+import { FacadeBar } from './facade/section'
 import { Panel } from './panel'
 import { Stage } from './scene'
 import { fitBox, openingBlock, readSurvey, envelopeOf } from './survey/model'
@@ -34,7 +35,7 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   const compiled = useMemo(() => compile(config, place.survey), [config, place.survey])
   const copy = meta[kind]
   const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
-  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : (facades[0]?.key ?? null)
+  const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : null
 
   function apply(next: Config) {
     setConfig(sanitize({ ...next, kind }, place.opening))
@@ -42,8 +43,8 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   }
 
   function pickPart(key: string) {
-    setPickedKey(key)
-    side.show()
+    setPickedKey((prev) => (prev === key ? null : key))
+    side.hide()
   }
 
   function setFronts(flag: boolean) {
@@ -145,9 +146,6 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         onCloseAll={() => setFronts(false)}
         onLoad={load}
         onCutlist={() => setCutOpen(true)}
-        parts={compiled.parts}
-        pickedKey={pick}
-        onPick={pickPart}
         onHide={side.hide}
       />
       {!side.open && (
@@ -163,6 +161,26 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
           pickedKey={pick}
           onPickPart={pickPart}
         />
+        {pick && (
+          <FacadeBar
+            parts={compiled.parts}
+            pickedKey={pick}
+            look={{
+              frame: config.frame,
+              handle: config.handle,
+              handlePos: config.handlePos,
+              handleSide: config.handleSide,
+              finish: config.finish,
+              mirror: config.mirror,
+              patterns: config.patterns,
+            }}
+            onLook={(look) => apply({ ...config, ...look })}
+            handleLayout={kind === 'pedestal' ? 'height' : 'place'}
+            showMirror={kind === 'wardrobe'}
+            open={Boolean(open[pick])}
+            onToggle={() => setOpen((prev) => ({ ...prev, [pick]: !prev[pick] }))}
+          />
+        )}
         <div className="hud">
           <p>{copy.hint}</p>
           <button type="button" onClick={() => setShot((value) => value + 1)}>В кадр</button>
