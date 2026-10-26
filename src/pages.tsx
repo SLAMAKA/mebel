@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
+import { useFloatSide } from './ui'
 import { compile } from './geometry'
 import { defaultsByKind, limitsFor, readConfig, sanitize, type Config } from './model'
-import { useOrder } from './order/client'
 import { CutlistPage } from './cutlist/page'
 import { Panel } from './panel'
 import { Stage } from './scene'
@@ -28,8 +28,8 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   const [note, setNote] = useState('')
   const [cutOpen, setCutOpen] = useState(false)
   const [pickedKey, setPickedKey] = useState<string | null>(null)
+  const side = useFloatSide()
   const place = useOpening()
-  const order = useOrder()
   const limits = limitsFor(kind)
   const compiled = useMemo(() => compile(config, place.survey), [config, place.survey])
   const copy = meta[kind]
@@ -39,6 +39,11 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   function apply(next: Config) {
     setConfig(sanitize({ ...next, kind }, place.opening))
     setNote('')
+  }
+
+  function pickPart(key: string) {
+    setPickedKey(key)
+    side.show()
   }
 
   function setFronts(flag: boolean) {
@@ -123,7 +128,7 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
   }
 
   return (
-    <div className="app">
+    <div className={side.open ? 'app overlay' : 'app overlay sidebar-shut'}>
       <Panel
         config={config}
         title={copy.title}
@@ -134,9 +139,6 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         place={{
           survey: place.survey,
           onEdit: place.edit,
-          onOrder: () => order.order({ kind, survey: place.survey, config }),
-          ordering: order.ordering,
-          orderNote: order.orderNote,
         }}
         onChange={apply}
         onOpenAll={() => setFronts(true)}
@@ -145,8 +147,12 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         onCutlist={() => setCutOpen(true)}
         parts={compiled.parts}
         pickedKey={pick}
-        onPick={setPickedKey}
+        onPick={pickPart}
+        onHide={side.hide}
       />
+      {!side.open && (
+        <button type="button" className="sidebar-open" onClick={side.show}>{copy.title}</button>
+      )}
       <main className="view">
         <Stage
           config={config}
@@ -155,7 +161,7 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
           shot={shot}
           opening={place.opening}
           pickedKey={pick}
-          onPickPart={setPickedKey}
+          onPickPart={pickPart}
         />
         <div className="hud">
           <p>{copy.hint}</p>

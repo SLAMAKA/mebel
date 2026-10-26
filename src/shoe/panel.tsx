@@ -38,6 +38,7 @@ export function ShoePanel({
   parts,
   pickedKey,
   onPick,
+  onHide,
 }: {
   config: ShoeConfig
   spec: SpecRow[]
@@ -46,9 +47,6 @@ export function ShoePanel({
   place: {
     survey: Survey | null
     onEdit: () => void
-    onOrder: () => void
-    ordering: boolean
-    orderNote: string
   }
   onChange: (config: ShoeConfig) => void
   onOpenAll: () => void
@@ -58,6 +56,7 @@ export function ShoePanel({
   parts: Part[]
   pickedKey: string | null
   onPick: (key: string) => void
+  onHide: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkShoeRules(config)
@@ -78,20 +77,25 @@ export function ShoePanel({
   }
 
   return (
-    <aside className="panel">
+    <aside className="panel sidebar" aria-label="Обувница">
       <div className="brand">
         <div>
           <h1>Обувница</h1>
           <p>ОБ-5 · откидные ящики</p>
         </div>
+        <button
+          type="button"
+          className="ghost sidebar-close"
+          aria-label="Скрыть панель"
+          onClick={onHide}
+        >
+          Скрыть
+        </button>
       </div>
 
       <PlaceBar
         survey={place.survey}
         onEdit={place.onEdit}
-        onOrder={place.onOrder}
-        ordering={place.ordering}
-        orderNote={place.orderNote}
       />
 
       <p className="readout">

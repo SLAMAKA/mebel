@@ -425,3 +425,19 @@ export function Fold({
     </section>
   )
 }
+
+export function useFloatSide() {
+  const [open, setOpen] = useState(true)
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && open) setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+  return {
+    open,
+    show: () => setOpen(true),
+    hide: () => setOpen(false),
+  }
+}

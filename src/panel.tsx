@@ -43,6 +43,7 @@ export function Panel({
   parts,
   pickedKey,
   onPick,
+  onHide,
 }: {
   config: Config
   title: string
@@ -53,9 +54,6 @@ export function Panel({
   place: {
     survey: Survey | null
     onEdit: () => void
-    onOrder: () => void
-    ordering: boolean
-    orderNote: string
   }
   onChange: (config: Config) => void
   onOpenAll: () => void
@@ -65,6 +63,7 @@ export function Panel({
   parts: Part[]
   pickedKey: string | null
   onPick: (key: string) => void
+  onHide: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkRules(config)
@@ -106,20 +105,25 @@ export function Panel({
   }
 
   return (
-    <aside className="panel">
+    <aside className="panel sidebar" aria-label={title}>
       <div className="brand">
         <div>
           <h1>{title}</h1>
           <p>{subtitle}</p>
         </div>
+        <button
+          type="button"
+          className="ghost sidebar-close"
+          aria-label="Скрыть панель"
+          onClick={onHide}
+        >
+          Скрыть
+        </button>
       </div>
 
       <PlaceBar
         survey={place.survey}
         onEdit={place.onEdit}
-        onOrder={place.onOrder}
-        ordering={place.ordering}
-        orderNote={place.orderNote}
       />
 
       <p className="readout">

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useOrder } from '../order/client'
+import { useMemo, useState } from 'react'
+import { useFloatSide } from '../ui'
 import { CutlistPage } from '../cutlist/page'
 import { Stage } from '../scene'
 import { envelopeOf, fitBox, openingBlock, readSurvey } from '../survey/model'
@@ -23,21 +23,21 @@ export function ShoePage() {
   const [note, setNote] = useState('')
   const [cutOpen, setCutOpen] = useState(false)
   const [pickedKey, setPickedKey] = useState<string | null>(null)
+  const side = useFloatSide()
   const place = useOpening()
-  const order = useOrder()
   const compiled = useMemo(() => compileShoe(config, place.survey), [config, place.survey])
   const look = shoeAsSceneLook(config)
   const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
   const pick = pickedKey && facades.some((part) => part.key === pickedKey) ? pickedKey : (facades[0]?.key ?? null)
 
-  useEffect(() => {
-    setOpen({})
-    setShot((value) => value + 1)
-  }, [config.width, config.height, config.depth, config.drawers])
-
   function apply(next: ShoeConfig) {
     setConfig(sanitizeShoe(next, place.opening))
     setNote('')
+  }
+
+  function pickPart(key: string) {
+    setPickedKey(key)
+    side.show()
   }
 
   function setFronts(flag: boolean) {
@@ -114,7 +114,7 @@ export function ShoePage() {
   }
 
   return (
-    <div className="app">
+    <div className={side.open ? 'app overlay' : 'app overlay sidebar-shut'}>
       <ShoePanel
         config={config}
         spec={compiled.spec}
@@ -123,9 +123,6 @@ export function ShoePage() {
         place={{
           survey: place.survey,
           onEdit: place.edit,
-          onOrder: () => order.order({ kind: 'shoe', survey: place.survey, config }),
-          ordering: order.ordering,
-          orderNote: order.orderNote,
         }}
         onChange={apply}
         onOpenAll={() => setFronts(true)}
@@ -134,8 +131,12 @@ export function ShoePage() {
         onCutlist={() => setCutOpen(true)}
         parts={compiled.parts}
         pickedKey={pick}
-        onPick={setPickedKey}
+        onPick={pickPart}
+        onHide={side.hide}
       />
+      {!side.open && (
+        <button type="button" className="sidebar-open" onClick={side.show}>Обувница</button>
+      )}
       <main className="view">
         <Stage
           config={look}
@@ -144,7 +145,7 @@ export function ShoePage() {
           shot={shot}
           opening={place.opening}
           pickedKey={pick}
-          onPickPart={setPickedKey}
+          onPickPart={pickPart}
         />
         <div className="hud">
           <p>

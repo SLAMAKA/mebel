@@ -122,11 +122,13 @@ input { font: inherit; }
   align-items: center;
 }
 
+.overlay,
 .survey-app {
   display: block;
   position: relative;
 }
 
+.overlay .view,
 .survey-app .view {
   position: absolute;
   inset: 0;
@@ -135,11 +137,13 @@ input { font: inherit; }
   z-index: 1;
 }
 
+.overlay .brand h1,
 .survey-app .brand h1 {
   font-size: 28px;
   text-wrap: pretty;
 }
 
+.overlay .panel.sidebar,
 .survey-app .panel.sidebar {
   position: absolute;
   z-index: 4;
@@ -153,6 +157,7 @@ input { font: inherit; }
   gap: 16px;
   padding: 20px 18px 18px;
   overflow: auto;
+  overscroll-behavior: contain;
   border-radius: 20px;
   background: #241c16;
   box-shadow: 0 20px 48px rgba(28, 18, 12, 0.42);
@@ -161,6 +166,26 @@ input { font: inherit; }
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+.overlay .panel.sidebar > *,
+.survey-app .panel.sidebar > * {
+  flex-shrink: 0;
+}
+
+.overlay .panel.sidebar .fold,
+.overlay .panel.sidebar .actions,
+.overlay .panel.sidebar .place-bar,
+.survey-app .panel.sidebar .fold,
+.survey-app .panel.sidebar .actions,
+.survey-app .panel.sidebar .place-bar {
+  margin-top: 0;
+}
+
+.overlay .panel.sidebar .readout,
+.survey-app .panel.sidebar .readout {
+  margin-top: 0;
+}
+
+.overlay.sidebar-shut .panel.sidebar,
 .survey-app.sidebar-shut .panel.sidebar {
   visibility: hidden;
   pointer-events: none;
@@ -189,14 +214,24 @@ input { font: inherit; }
   box-shadow: 0 12px 28px rgba(28, 18, 12, 0.38);
 }
 
-.survey-app .stage-note {
+.overlay .stage-note,
+.survey-app .stage-note,
+.overlay.sidebar-shut .stage-note,
+.survey-app.sidebar-shut .stage-note {
   left: auto;
   right: 16px;
 }
 
-.survey-app.sidebar-shut .stage-note {
+.overlay .hud {
   left: auto;
   right: 16px;
+  bottom: 64px;
+}
+
+.overlay.sidebar-shut .hud {
+  left: 16px;
+  right: auto;
+  bottom: 16px;
 }
 
 .logo {
@@ -835,7 +870,14 @@ h2 {
 }
 
 .place-bar .row {
-  margin-top: 8px;
+  margin-top: 0;
+  align-items: center;
+}
+
+.place-bar .readout {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
 }
 
 .stage canvas {
@@ -1204,6 +1246,7 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .overlay .panel.sidebar,
   .survey-app .panel.sidebar {
     transition: none;
   }
@@ -1249,7 +1292,21 @@ h2 {
   .view { order: 1; }
   .panel { order: 2; height: auto; }
 
+  .overlay {
+    display: block;
+    grid-template-columns: none;
+    grid-template-rows: none;
+  }
+
+  .overlay .view {
+    order: unset;
+    position: absolute;
+    inset: 0;
+  }
+
+  .overlay .panel.sidebar,
   .survey-app .panel.sidebar {
+    order: unset;
     top: 12px;
     left: 12px;
     right: 12px;
@@ -1258,7 +1315,9 @@ h2 {
     max-height: min(72vh, calc(100% - 24px));
   }
 
+  .overlay .stage-note,
   .survey-app .stage-note,
+  .overlay.sidebar-shut .stage-note,
   .survey-app.sidebar-shut .stage-note {
     left: auto;
     right: 12px;

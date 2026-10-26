@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useOrder } from '../order/client'
+import { useFloatSide } from '../ui'
 import { CutlistPage } from '../cutlist/page'
 import { Stage } from '../scene'
 import { envelopeOf, fitBox, openingBlock, readSurvey } from '../survey/model'
@@ -22,8 +22,8 @@ export function MiniPage() {
   const [note, setNote] = useState('')
   const [cutOpen, setCutOpen] = useState(false)
   const [pickedKey, setPickedKey] = useState<string | null>(null)
+  const side = useFloatSide()
   const place = useOpening()
-  const order = useOrder()
   const compiled = useMemo(() => compileMini(config, place.survey), [config, place.survey])
   const look = miniAsSceneLook(config)
   const facades = compiled.parts.filter((part) => part.role === 'facade' && !part.ghost)
@@ -32,6 +32,11 @@ export function MiniPage() {
   function apply(next: MiniConfig) {
     setConfig(sanitizeMini(next, place.opening))
     setNote('')
+  }
+
+  function pickPart(key: string) {
+    setPickedKey(key)
+    side.show()
   }
 
   function setFronts(flag: boolean) {
@@ -108,7 +113,7 @@ export function MiniPage() {
   }
 
   return (
-    <div className="app">
+    <div className={side.open ? 'app overlay' : 'app overlay sidebar-shut'}>
       <MiniPanel
         config={config}
         spec={compiled.spec}
@@ -117,9 +122,6 @@ export function MiniPage() {
         place={{
           survey: place.survey,
           onEdit: place.edit,
-          onOrder: () => order.order({ kind: 'mini', survey: place.survey, config }),
-          ordering: order.ordering,
-          orderNote: order.orderNote,
         }}
         onChange={apply}
         onOpenAll={() => setFronts(true)}
@@ -128,8 +130,12 @@ export function MiniPage() {
         onCutlist={() => setCutOpen(true)}
         parts={compiled.parts}
         pickedKey={pick}
-        onPick={setPickedKey}
+        onPick={pickPart}
+        onHide={side.hide}
       />
+      {!side.open && (
+        <button type="button" className="sidebar-open" onClick={side.show}>Мини</button>
+      )}
       <main className="view">
         <Stage
           config={look}
@@ -138,7 +144,7 @@ export function MiniPage() {
           shot={shot}
           opening={place.opening}
           pickedKey={pick}
-          onPickPart={setPickedKey}
+          onPickPart={pickPart}
         />
         <div className="hud">
           <p>

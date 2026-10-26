@@ -84,6 +84,7 @@ export function MiniPanel({
   parts,
   pickedKey,
   onPick,
+  onHide,
 }: {
   config: MiniConfig
   spec: SpecRow[]
@@ -92,9 +93,6 @@ export function MiniPanel({
   place: {
     survey: Survey | null
     onEdit: () => void
-    onOrder: () => void
-    ordering: boolean
-    orderNote: string
   }
   onChange: (config: MiniConfig) => void
   onOpenAll: () => void
@@ -104,6 +102,7 @@ export function MiniPanel({
   parts: Part[]
   pickedKey: string | null
   onPick: (key: string) => void
+  onHide: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const rules = checkMiniRules(config)
@@ -127,20 +126,25 @@ export function MiniPanel({
   }
 
   return (
-    <aside className="panel">
+    <aside className="panel sidebar" aria-label="Мини">
       <div className="brand">
         <div>
           <h1>Мини</h1>
           <p>Мини-шкафчик</p>
         </div>
+        <button
+          type="button"
+          className="ghost sidebar-close"
+          aria-label="Скрыть панель"
+          onClick={onHide}
+        >
+          Скрыть
+        </button>
       </div>
 
       <PlaceBar
         survey={place.survey}
         onEdit={place.onEdit}
-        onOrder={place.onOrder}
-        ordering={place.ordering}
-        orderNote={place.orderNote}
       />
 
       <p className="readout">

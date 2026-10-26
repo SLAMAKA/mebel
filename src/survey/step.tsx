@@ -163,32 +163,22 @@ export function SurveyStep({
 export function PlaceBar({
   survey,
   onEdit,
-  onOrder,
-  ordering,
-  orderNote,
 }: {
   survey: Survey | null
   onEdit: () => void
-  onOrder: () => void
-  ordering: boolean
-  orderNote: string
 }) {
   const opening = survey ? envelopeOf(survey) : null
   return (
     <div className="place-bar">
-      <p className="readout">
-        {opening
-          ? `Проём ${opening.openingW} × ${opening.openingH} × ${opening.openingD} мм`
-          : 'Без привязки к месту'}
-      </p>
-      {opening?.outOfSquare && <p className="warn">Проём не прямой</p>}
       <div className="row">
+        <p className="readout">
+          {opening
+            ? `Проём ${opening.openingW} × ${opening.openingH} × ${opening.openingD} мм`
+            : 'Без привязки к месту'}
+        </p>
         <button type="button" className="ghost" onClick={onEdit}>Замер</button>
-        <button type="button" className="ghost" onClick={onOrder} disabled={ordering}>
-          {ordering ? 'Считаю…' : 'В заказ'}
-        </button>
       </div>
-      {orderNote && <p className="note">{orderNote}</p>}
+      {opening?.outOfSquare && <p className="warn">Проём не прямой</p>}
     </div>
   )
 }
