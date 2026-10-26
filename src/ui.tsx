@@ -205,11 +205,10 @@ export function MirrorIcon({ id }: { id: string }) {
 }
 
 export function HandleIcon({ id, side }: { id: HandleId; side: HandleSideId }) {
-  const atOpen = side === 'open'
-  const hx = atOpen ? 21 : 11
-  const bow = atOpen
-    ? `M${hx} 11c4 2 4 8 0 10`
-    : `M${hx} 11c-4 2-4 8 0 10`
+  const hx = side === 'open' ? 21 : side === 'center' ? 16 : 11
+  const bow = side === 'hinge'
+    ? `M${hx} 11c-4 2-4 8 0 10`
+    : `M${hx} 11c4 2 4 8 0 10`
 
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -219,13 +218,13 @@ export function HandleIcon({ id, side }: { id: HandleId; side: HandleSideId }) {
       {id === 'none' ? null : id === 'knob' ? (
         <circle cx={hx} cy="16" r="2.5" className="fill" />
       ) : id === 'rail' ? (
-        <path d={atOpen ? 'M12 10h10' : 'M10 10h10'} />
+        <path d={side === 'center' ? 'M10 10h12' : side === 'open' ? 'M12 10h10' : 'M10 10h10'} />
       ) : id === 'bow' ? (
         <path d={bow} />
       ) : id === 'edge' ? (
         <path d={`M${hx} 8v16`} />
       ) : id === 'cut' ? (
-        <rect x={atOpen ? 12 : 8} y="7" width="12" height="3.2" rx="1.6" className="fill" />
+        <rect x={side === 'open' ? 12 : side === 'center' ? 10 : 8} y="7" width="12" height="3.2" rx="1.6" className="fill" />
       ) : (
         <path d={`M${hx} 12v8`} />
       )}
@@ -298,14 +297,16 @@ export function HandlePlace({
   onChange: (next: { handlePos: HandlePosId; handleSide: HandleSideId }) => void
 }) {
   const rows: HandlePosId[] = ['top', 'middle', 'bottom']
-  const cols: HandleSideId[] = ['hinge', 'open']
+  const cols: HandleSideId[] = ['hinge', 'center', 'open']
   const rowName = { top: 'Верх', middle: 'Середина', bottom: 'Низ' }
+  const colName = { hinge: 'у петли', center: 'по центру', open: 'у открытия' }
+  const colHint = side === 'open' ? 'у края открытия' : colName[side]
 
   return (
     <div className="choice">
       <span className="choice-label">Позиция на двери</span>
       <div className="door-place">
-        <div className="door-place-door">
+        <div className="door-place-door" role="group" aria-label="Точка ручки на двери">
           <span className="door-place-hinge" aria-hidden="true" />
           <span className="door-place-hinge low" aria-hidden="true" />
           {rows.map((row) =>
@@ -318,10 +319,11 @@ export function HandlePlace({
                   className={on ? 'door-place-spot on' : 'door-place-spot'}
                   style={{
                     gridRow: row === 'top' ? 1 : row === 'middle' ? 2 : 3,
-                    gridColumn: col === 'hinge' ? 1 : 2,
+                    gridColumn: col === 'hinge' ? 1 : col === 'center' ? 2 : 3,
                   }}
-                  aria-label={`${rowName[row]}, ${col === 'open' ? 'у открытия' : 'у петли'}`}
-                  title={`${rowName[row]} · ${col === 'open' ? 'у открытия' : 'у петли'}`}
+                  aria-pressed={on}
+                  aria-label={`${rowName[row]} ${colName[col]}`}
+                  title={`${rowName[row]} · ${colName[col]}`}
                   onClick={() => onChange({ handlePos: row, handleSide: col })}
                 />
               )
@@ -330,10 +332,12 @@ export function HandlePlace({
         </div>
         <div className="door-place-legend">
           <span>петли</span>
+          <span>центр</span>
           <span>открытие</span>
         </div>
         <p className="door-place-hint">
-          {rowName[pos]} · {side === 'open' ? 'у края открытия' : 'у петли'} · сторона считается по каждой двери
+          {rowName[pos]} · {colHint}
+          {side === 'center' ? '' : ' · сторона считается по каждой двери'}
         </p>
       </div>
     </div>

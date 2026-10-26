@@ -148,9 +148,6 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
         onCutlist={() => setCutOpen(true)}
         onHide={side.hide}
       />
-      {!side.open && (
-        <button type="button" className="sidebar-open" onClick={side.show}>{copy.title}</button>
-      )}
       <main className="view">
         <Stage
           config={config}
@@ -161,26 +158,31 @@ function ProductPage({ kind }: { kind: 'wardrobe' | 'pedestal' }) {
           pickedKey={pick}
           onPickPart={pickPart}
         />
-        {pick && (
-          <FacadeBar
-            parts={compiled.parts}
-            pickedKey={pick}
-            look={{
-              frame: config.frame,
-              handle: config.handle,
-              handlePos: config.handlePos,
-              handleSide: config.handleSide,
-              finish: config.finish,
-              mirror: config.mirror,
-              patterns: config.patterns,
-            }}
-            onLook={(look) => apply({ ...config, ...look })}
-            handleLayout={kind === 'pedestal' ? 'height' : 'place'}
-            showMirror={kind === 'wardrobe'}
-            open={Boolean(open[pick])}
-            onToggle={() => setOpen((prev) => ({ ...prev, [pick]: !prev[pick] }))}
-          />
-        )}
+        <div className="scene-dock">
+          {!side.open && (
+            <button type="button" className="sidebar-open" onClick={side.show}>{copy.title}</button>
+          )}
+          {pick && (
+            <FacadeBar
+              parts={compiled.parts}
+              pickedKey={pick}
+              look={{
+                frame: config.frame,
+                handle: config.handle,
+                handlePos: config.handlePos,
+                handleSide: config.handleSide,
+                finish: config.finish,
+                mirror: config.mirror,
+                patterns: config.patterns,
+              }}
+              onLook={(look) => apply({ ...config, ...look })}
+              handleLayout={kind === 'pedestal' ? 'height' : 'place'}
+              showMirror={kind === 'wardrobe'}
+              open={Boolean(open[pick])}
+              onToggle={() => setOpen((prev) => ({ ...prev, [pick]: !prev[pick] }))}
+            />
+          )}
+        </div>
         <div className="hud">
           <p>{copy.hint}</p>
           <button type="button" onClick={() => setShot((value) => value + 1)}>В кадр</button>

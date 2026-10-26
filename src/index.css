@@ -214,6 +214,14 @@ input { font: inherit; }
   box-shadow: 0 12px 28px rgba(28, 18, 12, 0.38);
 }
 
+.scene-dock .sidebar-open {
+  position: static;
+  z-index: auto;
+  top: auto;
+  left: auto;
+  pointer-events: auto;
+}
+
 .overlay .stage-note,
 .survey-app .stage-note,
 .overlay.sidebar-shut .stage-note,
@@ -356,12 +364,12 @@ input { font: inherit; }
 .door-place-door {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
   gap: 8px;
-  width: 120px;
-  height: 168px;
-  padding: 12px 14px 12px 18px;
+  width: 168px;
+  height: 180px;
+  padding: 12px 12px 12px 16px;
   border: 1.5px solid #6a5c4e;
   border-radius: 10px;
   background: #2a221c;
@@ -386,8 +394,8 @@ input { font: inherit; }
   border: 1px solid #4a4036;
   background: #3a3129;
   border-radius: 999px;
-  min-width: 0;
-  min-height: 0;
+  min-width: 36px;
+  min-height: 36px;
   padding: 0;
   cursor: pointer;
 }
@@ -398,9 +406,14 @@ input { font: inherit; }
   box-shadow: 0 0 0 3px rgba(226, 138, 69, 0.25);
 }
 
+.door-place-spot:focus-visible {
+  outline: 2px solid #e28a45;
+  outline-offset: 2px;
+}
+
 .door-place-legend {
   display: flex;
-  width: 120px;
+  width: 168px;
   justify-content: space-between;
   margin-top: 6px;
   color: #9a8b7a;
@@ -539,20 +552,26 @@ h2 {
   margin-top: 4px;
 }
 
-.face-bar {
+.scene-dock {
   position: absolute;
   z-index: 5;
   top: 16px;
   left: 16px;
-  right: 16px;
+  right: auto;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 8px;
+  max-width: min(520px, calc(100% - 32px));
   pointer-events: none;
 }
 
-.overlay:not(.sidebar-shut) .face-bar {
+.overlay:not(.sidebar-shut) .scene-dock {
   left: 392px;
+}
+
+.face-bar {
+  display: contents;
 }
 
 .face-bar-row,
@@ -607,7 +626,8 @@ h2 {
 }
 
 .face-bar-pane {
-  margin-top: 8px;
+  flex: 1 1 100%;
+  align-self: flex-start;
   width: min(420px, 100%);
   max-height: min(560px, calc(100vh - 180px));
   overflow: auto;
@@ -622,10 +642,6 @@ h2 {
 .face-bar-pane .choice:first-child,
 .face-bar-pane .door-place-hint:first-child {
   margin-top: 8px;
-}
-
-.view:has(.face-bar) .stage-note {
-  top: 72px;
 }
 
 .choice > span,
@@ -1413,14 +1429,11 @@ h2 {
     top: 58px;
   }
 
-  .overlay:not(.sidebar-shut) .face-bar,
-  .overlay.sidebar-shut .face-bar {
+  .overlay:not(.sidebar-shut) .scene-dock,
+  .overlay.sidebar-shut .scene-dock {
+    top: 16px;
     left: 12px;
-    right: 12px;
-  }
-
-  .view:has(.face-bar) .stage-note {
-    top: 72px;
+    max-width: calc(100% - 24px);
   }
 
   .cut-app {

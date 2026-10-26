@@ -131,9 +131,6 @@ export function MiniPage() {
         onCutlist={() => setCutOpen(true)}
         onHide={side.hide}
       />
-      {!side.open && (
-        <button type="button" className="sidebar-open" onClick={side.show}>Мини</button>
-      )}
       <main className="view">
         <Stage
           config={look}
@@ -144,24 +141,29 @@ export function MiniPage() {
           pickedKey={pick}
           onPickPart={pickPart}
         />
-        {pick && (
-          <FacadeBar
-            parts={compiled.parts}
-            pickedKey={pick}
-            look={{
-              frame: config.frame,
-              handle: config.handle,
-              handlePos: config.handlePos,
-              handleSide: config.handleSide,
-              finish: config.finish,
-              patterns: config.patterns,
-            }}
-            onLook={(look) => apply({ ...config, ...look })}
-            handleLayout="place"
-            open={Boolean(open[pick])}
-            onToggle={() => setOpen((prev) => ({ ...prev, [pick]: !prev[pick] }))}
-          />
-        )}
+        <div className="scene-dock">
+          {!side.open && (
+            <button type="button" className="sidebar-open" onClick={side.show}>Мини</button>
+          )}
+          {pick && (
+            <FacadeBar
+              parts={compiled.parts}
+              pickedKey={pick}
+              look={{
+                frame: config.frame,
+                handle: config.handle,
+                handlePos: config.handlePos,
+                handleSide: config.handleSide,
+                finish: config.finish,
+                patterns: config.patterns,
+              }}
+              onLook={(look) => apply({ ...config, ...look })}
+              handleLayout="place"
+              open={Boolean(open[pick])}
+              onToggle={() => setOpen((prev) => ({ ...prev, [pick]: !prev[pick] }))}
+            />
+          )}
+        </div>
         <div className="hud">
           <p>
             {config.mount === 'wall'

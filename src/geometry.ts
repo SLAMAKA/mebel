@@ -418,7 +418,7 @@ function cutSlot(part: Part, pos: HandlePosId, side: HandleSideId): HandleSlot {
   const pad = 0.01 + slotH / 2
   const drawer = part.move === 'drawer' || part.move === 'tilt'
   const y = pos === 'bottom' ? pad : pos === 'top' ? h - pad : h * 0.5
-  if (drawer) return { x: w * 0.5, y, w: slotW, h: slotH }
+  if (drawer || side === 'center') return { x: w * 0.5, y, w: slotW, h: slotH }
   const hingeLeft = part.move === 'swing-left' || part.move === 'slide-left' || !part.move
   const openOnLeft = !hingeLeft
   const onLeft = side === 'open' ? openOnLeft : hingeLeft
@@ -458,15 +458,15 @@ export function handlePlan(
   // Петля слева → открытие справа. Петля справа → открытие слева.
   const hingeLeft = part.move === 'swing-left' || part.move === 'slide-left' || !part.move
   const openOnLeft = !hingeLeft
-  const onOpen = side === 'open'
-  const onLeft = onOpen ? openOnLeft : hingeLeft
-  const edgeX = onLeft ? w * 0.18 : w * 0.82
+  const onLeft = side === 'open' ? openOnLeft : hingeLeft
+  const centered = side === 'center'
+  const edgeX = centered ? w * 0.5 : onLeft ? w * 0.18 : w * 0.82
 
   if (handle === 'knob') return { holes: [{ x: edgeX, y }] }
 
   if (handle === 'edge') {
-    // Профиль у самого края открывания или петли.
-    const flushX = onLeft ? w * 0.035 : w * 0.965
+    // Профиль у самого края открывания или петли. Центр — середина щита.
+    const flushX = centered ? w * 0.5 : onLeft ? w * 0.035 : w * 0.965
     return { holes: [{ x: flushX, y }] }
   }
 
@@ -482,7 +482,7 @@ export function handlePlan(
 
   if (handle === 'rail') {
     const span = Math.min(holeSpan, Math.max(0.12, w * 0.4))
-    const cx = onLeft ? w * 0.38 : w * 0.62
+    const cx = centered ? w * 0.5 : onLeft ? w * 0.38 : w * 0.62
     return {
       holes: [
         { x: cx - span / 2, y },
@@ -510,7 +510,11 @@ function makeSpec(config: Config, parts: Part[]): SpecRow[] {
   const finish = findById(finishes, config.finish)
   const base = findById(bases, config.base)
   const posName = config.handlePos === 'top' ? 'верх' : config.handlePos === 'bottom' ? 'низ' : 'середина'
-  const sideName = config.handleSide === 'hinge' ? 'у петли' : 'у открытия'
+  const sideName = config.handleSide === 'hinge'
+    ? 'у петли'
+    : config.handleSide === 'center'
+      ? 'по центру'
+      : 'у открытия'
 
   const kindName = config.kind === 'pedestal' ? 'Тумба' : 'Шкаф'
   rows.push({ name: 'Изделие', value: kindName })

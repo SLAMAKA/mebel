@@ -3,7 +3,7 @@ export type BoardId = 'ldsp' | 'mdf' | 'veneer'
 export type ColorId = 'white' | 'oak' | 'walnut' | 'graphite' | 'sage' | 'sand' | 'navy' | 'terra'
 export type HandleId = 'bar' | 'knob' | 'rail' | 'bow' | 'edge' | 'cut' | 'none'
 export type HandlePosId = 'top' | 'middle' | 'bottom'
-export type HandleSideId = 'open' | 'hinge'
+export type HandleSideId = 'open' | 'hinge' | 'center'
 export type FinishId = 'chrome' | 'black' | 'gold' | 'white'
 export type BaseId = 'plinth' | 'legs'
 export type DoorId = 'swing' | 'slide' | 'open'
@@ -97,6 +97,7 @@ export const handlePositions: { id: HandlePosId; name: string }[] = [
 
 export const handleSides: { id: HandleSideId; name: string }[] = [
   { id: 'open', name: 'У открытия' },
+  { id: 'center', name: 'По центру' },
   { id: 'hinge', name: 'У петли' },
 ]
 
@@ -345,7 +346,7 @@ export function sanitize(input: Config, opening: Envelope | null = null): Config
   if (next.doors !== 'swing' && next.doors !== 'slide' && next.doors !== 'open') next.doors = 'swing'
   if (next.base !== 'plinth' && next.base !== 'legs') next.base = 'plinth'
   if (next.handlePos !== 'top' && next.handlePos !== 'middle' && next.handlePos !== 'bottom') next.handlePos = 'middle'
-  if (next.handleSide !== 'open' && next.handleSide !== 'hinge') next.handleSide = 'open'
+  if (next.handleSide !== 'open' && next.handleSide !== 'hinge' && next.handleSide !== 'center') next.handleSide = 'open'
   if (!handleIds.has(next.handle)) next.handle = 'bar'
   if (!frameIds.has(next.frame)) {
     const legacy = next as Config & { facadeFrame?: boolean }

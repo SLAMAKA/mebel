@@ -110,7 +110,7 @@ export function sanitizeShoe(input: ShoeConfig, opening: Envelope | null = null)
   next.depth = clamp(next.depth, Math.min(lim.depth.min, lim.depth.max), lim.depth.max)
   next.height = clamp(next.height, Math.min(lim.height.min, lim.height.max), lim.height.max)
   if (next.handlePos !== 'top' && next.handlePos !== 'middle' && next.handlePos !== 'bottom') next.handlePos = 'top'
-  if (next.handleSide !== 'open' && next.handleSide !== 'hinge') next.handleSide = 'open'
+  if (next.handleSide !== 'open' && next.handleSide !== 'hinge' && next.handleSide !== 'center') next.handleSide = 'open'
   if (!handleIds.has(next.handle)) next.handle = 'knob'
   if (!frameIds.has(next.frame)) next.frame = 'plain'
   next.patterns = prunePatterns(

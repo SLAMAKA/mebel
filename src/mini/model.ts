@@ -251,7 +251,7 @@ export function sanitizeMini(input: MiniConfig, opening: Envelope | null = null)
   if (next.base !== 'plinth' && next.base !== 'legs') next.base = 'plinth'
   if (next.mount === 'wall') next.base = 'plinth'
   if (next.handlePos !== 'top' && next.handlePos !== 'middle' && next.handlePos !== 'bottom') next.handlePos = 'middle'
-  if (next.handleSide !== 'open' && next.handleSide !== 'hinge') next.handleSide = 'open'
+  if (next.handleSide !== 'open' && next.handleSide !== 'hinge' && next.handleSide !== 'center') next.handleSide = 'open'
   if (!handleIds.has(next.handle)) next.handle = 'knob'
   if (!frameIds.has(next.frame)) next.frame = 'plain'
   if (next.front === 'open') next.handle = 'none'
