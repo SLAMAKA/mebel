@@ -137,7 +137,7 @@ function CutSlot({
 }) {
   const x = slot.x - size[0] / 2
   const y = slot.y - size[1] / 2
-  const deep = size[2] + 0.006
+  const deep = size[2] + 0.008
   const mid = Math.max(0.002, slot.w - slot.h)
   const r = slot.h / 2
   return (
@@ -156,6 +156,53 @@ function CutSlot({
       </mesh>
     </group>
   )
+}
+
+function boxesAroundHole(
+  x: number,
+  y: number,
+  bw: number,
+  bh: number,
+  hole: { x: number; y: number; w: number; h: number } | null,
+) {
+  if (!hole) return [{ x, y, w: bw, h: bh }]
+  const pad = 0.008
+  const hl = hole.x - hole.w / 2 - pad
+  const hr = hole.x + hole.w / 2 + pad
+  const hb = hole.y - hole.h / 2 - pad
+  const ht = hole.y + hole.h / 2 + pad
+  const left = x - bw / 2
+  const right = x + bw / 2
+  const bottom = y - bh / 2
+  const top = y + bh / 2
+  if (right <= hl || left >= hr || top <= hb || bottom >= ht) {
+    return [{ x, y, w: bw, h: bh }]
+  }
+  const minPiece = 0.004
+  const cutL = Math.max(left, hl)
+  const cutR = Math.min(right, hr)
+  const out: { x: number; y: number; w: number; h: number }[] = []
+  if (cutL - left >= minPiece) {
+    const w = cutL - left
+    out.push({ x: left + w / 2, y, w, h: bh })
+  }
+  if (right - cutR >= minPiece) {
+    const w = right - cutR
+    out.push({ x: cutR + w / 2, y, w, h: bh })
+  }
+  const midW = cutR - cutL
+  if (midW >= minPiece) {
+    const midX = (cutL + cutR) / 2
+    if (hb - bottom >= minPiece) {
+      const h = hb - bottom
+      out.push({ x: midX, y: bottom + h / 2, w: midW, h })
+    }
+    if (top - ht >= minPiece) {
+      const h = top - ht
+      out.push({ x: midX, y: ht + h / 2, w: midW, h })
+    }
+  }
+  return out
 }
 
 function HandleMesh({ handle, config }: { handle: SceneLook['handle']; config: SceneLook }) {
@@ -239,12 +286,14 @@ function FrameOverlay({
   frame,
   baseColor,
   map,
+  slot,
 }: {
   size: [number, number, number]
   meshX: number
   frame: SceneLook['frame']
   baseColor: string
   map?: CanvasTexture
+  slot?: HandleSlot
 }) {
   if (frame === 'plain') return null
 
@@ -254,6 +303,9 @@ function FrameOverlay({
   const dark = shade(baseColor, -28)
   const mid = shade(baseColor, -14)
   const light = shade(baseColor, 10)
+  const hole = slot
+    ? { x: slot.x - w / 2, y: slot.y - h / 2, w: slot.w, h: slot.h }
+    : null
 
   function FaceMat({ color, rough = 0.58 }: { color: string; rough?: number }) {
     return (
@@ -283,24 +335,20 @@ function FrameOverlay({
     const iw = Math.max(0.01, w - inset * 2)
     const ih = Math.max(0.01, h - inset * 2)
     const sideH = Math.max(0.008, ih - bandW * 2)
+    const rails = [
+      ...boxesAroundHole(0, ih / 2 - bandW / 2, iw, bandW, hole),
+      ...boxesAroundHole(0, -ih / 2 + bandW / 2, iw, bandW, hole),
+      ...boxesAroundHole(-iw / 2 + bandW / 2, 0, bandW, sideH, hole),
+      ...boxesAroundHole(iw / 2 - bandW / 2, 0, bandW, sideH, hole),
+    ]
     return (
       <group position={[0, 0, z]}>
-        <mesh position={[0, ih / 2 - bandW / 2, 0]} castShadow>
-          <boxGeometry args={[iw, bandW, depth]} />
-          <FaceMat color={color} />
-        </mesh>
-        <mesh position={[0, -ih / 2 + bandW / 2, 0]} castShadow>
-          <boxGeometry args={[iw, bandW, depth]} />
-          <FaceMat color={color} />
-        </mesh>
-        <mesh position={[-iw / 2 + bandW / 2, 0, 0]} castShadow>
-          <boxGeometry args={[bandW, sideH, depth]} />
-          <FaceMat color={color} />
-        </mesh>
-        <mesh position={[iw / 2 - bandW / 2, 0, 0]} castShadow>
-          <boxGeometry args={[bandW, sideH, depth]} />
-          <FaceMat color={color} />
-        </mesh>
+        {rails.map((rail, index) => (
+          <mesh key={index} position={[rail.x, rail.y, 0]} castShadow>
+            <boxGeometry args={[rail.w, rail.h, depth]} />
+            <FaceMat color={color} />
+          </mesh>
+        ))}
       </group>
     )
   }
@@ -308,11 +356,16 @@ function FrameOverlay({
   function Panel({ inset, depth, color, z }: { inset: number; depth: number; color: string; z: number }) {
     const pw = Math.max(0.01, w - inset * 2)
     const ph = Math.max(0.01, h - inset * 2)
+    const pieces = boxesAroundHole(0, 0, pw, ph, hole)
     return (
-      <mesh position={[0, 0, z]} castShadow>
-        <boxGeometry args={[pw, ph, depth]} />
-        <FaceMat color={color} rough={0.66} />
-      </mesh>
+      <group position={[0, 0, z]}>
+        {pieces.map((piece, index) => (
+          <mesh key={index} position={[piece.x, piece.y, 0]} castShadow>
+            <boxGeometry args={[piece.w, piece.h, depth]} />
+            <FaceMat color={color} rough={0.66} />
+          </mesh>
+        ))}
+      </group>
     )
   }
 
@@ -585,6 +638,7 @@ function Moving({
             frame={config.frame}
             baseColor={mat.color}
             map={mat.map}
+            slot={plan?.slot}
           />
         )}
         {part.role === 'facade' && (

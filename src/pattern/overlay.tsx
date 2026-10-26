@@ -55,14 +55,15 @@ function makeTexture(job: MillJob) {
   }
 
   if (job.slot) {
+    const pad = 8
     const r = Math.min(job.slot.h, job.slot.w) / 2
-    const x = toX(job.slot.x)
-    const y = toY(job.slot.y + job.slot.h)
-    const w = job.slot.w * sx
-    const h = job.slot.h * sy
+    const x = toX(job.slot.x - pad)
+    const y = toY(job.slot.y + job.slot.h + pad)
+    const w = (job.slot.w + pad * 2) * sx
+    const h = (job.slot.h + pad * 2) * sy
     ctx.globalCompositeOperation = 'destination-out'
     ctx.beginPath()
-    ctx.roundRect(x, y, w, h, r * scale)
+    ctx.roundRect(x, y, w, h, (r + pad) * scale)
     ctx.fill()
     ctx.globalCompositeOperation = 'source-over'
   }
